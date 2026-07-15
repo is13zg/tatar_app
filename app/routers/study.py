@@ -19,7 +19,7 @@ async def mode_study(theme_id: int, db: Annotated[AsyncSession, Depends(get_db)]
     if not theme:
         raise HTTPException(status_code=404, detail="Тема не найдена")
     words = (await db.execute(select(Word).where(Word.theme_id == theme_id))).scalars().all()
-    return [{"word": {"id": w.id, "text_tt": w.text_tt, "text_ru": w.text_ru, "image_url": w.image_url, "audio_url": w.audio_url, "theme_id": w.theme_id}} for w in words]
+    return [{"word": {"id": w.id, "text_tt": w.text_tt, "text_ru": w.text_ru, "image_url": w.image_url, "audio_url": w.audio_url or w.tts_url, "theme_id": w.theme_id}} for w in words]
 
 
 @router.get("/repeat/{theme_id}", response_model=list[QuizItem])
@@ -37,7 +37,7 @@ async def mode_repeat(theme_id: int, db: Annotated[AsyncSession, Depends(get_db)
             QuizItem(
                 word_id=w.id,
                 text_tt=w.text_tt,
-                audio_url=w.audio_url,
+                audio_url=w.audio_url or w.tts_url,
                 options=[QuizOption(id=o.id, image_url=o.image_url) for o in options],
             )
         )
@@ -92,6 +92,6 @@ async def mode_mistakes(db: Annotated[AsyncSession, Depends(get_db)], user: Anno
             continue
         options = random.sample(wrong_options, 3) + [w]
         random.shuffle(options)
-        items.append(QuizItem(word_id=w.id, text_tt=w.text_tt, audio_url=w.audio_url, options=[QuizOption(id=o.id, image_url=o.image_url) for o in options]))
+        items.append(QuizItem(word_id=w.id, text_tt=w.text_tt, audio_url=w.audio_url or w.tts_url, options=[QuizOption(id=o.id, image_url=o.image_url) for o in options]))
     random.shuffle(items)
     return items

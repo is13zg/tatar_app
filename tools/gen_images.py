@@ -2,9 +2,10 @@
 """Генерация детских иллюстраций для слов без картинок.
 
 Провайдеры:
-  fusionbrain — Kandinsky от Сбера, БЕСПЛАТНЫЙ ключ: https://fusionbrain.ai/docs/
-                env: FB_KEY, FB_SECRET
-  openai      — gpt-image-1, платный. env: OPENAI_API_KEY
+  pollinations — БЕСПЛАТНО и БЕЗ КЛЮЧА (flux), image.pollinations.ai. Дефолт.
+  fusionbrain  — Kandinsky от Сбера, БЕСПЛАТНЫЙ ключ: https://fusionbrain.ai/docs/
+                 env: FB_KEY, FB_SECRET
+  openai       — gpt-image-1, платный. env: OPENAI_API_KEY
 
 Скрипт берёт слова без картинок через API приложения и загружает готовые
 изображения обратно через /admin/word_image/{id} — работает и с локальным,
@@ -30,6 +31,39 @@ PROMPT = (
     "насыщенные цвета, без текста и букв."
 )
 
+# Уточнения промпта для слов, которые генераторы рисуют неверно
+CLARIFY = {
+    "бабушка": "добрая пожилая бабушка с седыми волосами и в платке",
+    "дедушка": "добрый пожилой дедушка с седой бородой",
+    "мама": "мама — взрослая женщина, обнимает ребёнка",
+    "папа": "папа — взрослый мужчина, держит ребёнка за руку",
+    "тетя": "приветливая взрослая женщина",
+    "дядя": "приветливый взрослый мужчина",
+    "семья": "семья вместе: мама, папа, ребёнок",
+    "родители": "мама и папа вместе",
+    "сын": "мальчик рядом с родителями",
+    "дочь": "девочка рядом с родителями",
+    "старший брат": "мальчик-подросток",
+    "старшая сестра": "девочка-подросток",
+    "человек": "приветливый человек в полный рост",
+    "сабантуй": "татарский праздник Сабантуй: борьба на поясах и столб с призами",
+    "тюбетейка": "татарская тюбетейка — расшитая шапочка",
+    "калфак": "татарский калфак — женский расшитый головной убор",
+    "кыстыбый": "кыстыбый — татарская лепёшка с картофельным пюре, сложенная пополам",
+    "эчпочмак (пирожок)": "эчпочмак — треугольный татарский пирожок",
+    "чак-чак": "чак-чак — татарская сладость горкой из теста с мёдом",
+}
+
+# Не генерируем: фразы и абстракции — картинка для них бессмысленна/вводит в заблуждение
+SKIP_THEMES = {"Знакомство и общение"}
+SKIP_RU = {
+    "время", "минута", "ум", "здоровье", "сила", "рост", "имя", "фамилия", "голос",
+    "смех", "родина", "место", "дикий", "светлый", "темный", "тёмный", "разноцветный",
+    "понимать", "знать", "думать", "помнить", "забыть", "животное", "насекомое",
+    "цвет", "форма", "сегодня", "вчера", "завтра", "год", "месяц", "неделя",
+    "время года", "выходной", "оценка", "ответ", "вопрос", "приятного аппетита!",
+}
+
 
 def login(app: str, user: str, password: str) -> dict:
     r = httpx.post(f"{app}/auth/login", data={"username": user, "password": password}, timeout=30)
@@ -43,12 +77,39 @@ def words_without_images(app: str, headers: dict, theme_filter: int | None) -> l
     for t in themes:
         if theme_filter and t["id"] != theme_filter:
             continue
+        if t["title_ru"] in SKIP_THEMES:
+            continue
         words = httpx.get(f"{app}/themes/{t['id']}/words", headers=headers, timeout=30).json()
         for w in words:
+            if w["text_ru"].lower() in SKIP_RU:
+                continue
             if not w.get("image_url") or "noimg" in (w.get("image_url") or ""):
                 w["theme_title"] = t["title_ru"]
                 result.append(w)
     return result
+
+
+# ---------- Pollinations (flux, без ключа) ----------
+
+class Pollinations:
+    def __init__(self) -> None:
+        self.client = httpx.Client(timeout=120, follow_redirects=True)
+
+    def generate(self, prompt: str) -> bytes:
+        from urllib.parse import quote
+        url = f"https://image.pollinations.ai/prompt/{quote(prompt)}"
+        last_err = None
+        for attempt in range(3):
+            try:
+                r = self.client.get(url, params={"width": 512, "height": 512, "nologo": "true", "seed": attempt * 7 + 1})
+                r.raise_for_status()
+                if not r.headers.get("content-type", "").startswith("image/"):
+                    raise RuntimeError(f"не картинка: {r.headers.get('content-type')}")
+                return r.content
+            except Exception as e:
+                last_err = e
+                time.sleep(5 * (attempt + 1))
+        raise RuntimeError(f"Pollinations не ответил: {last_err}")
 
 
 # ---------- FusionBrain (Kandinsky) ----------
@@ -114,7 +175,7 @@ def main() -> None:
     ap.add_argument("--app", default="http://127.0.0.1:8001")
     ap.add_argument("--user", default="admin")
     ap.add_argument("--password", required=True)
-    ap.add_argument("--provider", choices=["fusionbrain", "openai"], default="fusionbrain")
+    ap.add_argument("--provider", choices=["pollinations", "fusionbrain", "openai"], default="pollinations")
     ap.add_argument("--theme", type=int, help="только одна тема (id)")
     ap.add_argument("--limit", type=int, default=1000)
     ap.add_argument("--delay", type=float, default=1.0, help="пауза между генерациями, сек")
@@ -129,10 +190,14 @@ def main() -> None:
             print(f"  [{w['theme_title']}] {w['text_ru']} — {w['text_tt']}")
         return
 
-    provider = FusionBrain() if args.provider == "fusionbrain" else OpenAIImages()
+    providers = {"pollinations": Pollinations, "fusionbrain": FusionBrain, "openai": OpenAIImages}
+    provider = providers[args.provider]()
     ok, fail = 0, 0
     for i, w in enumerate(todo, 1):
-        prompt = PROMPT.format(ru=w["text_ru"])
+        ru = CLARIFY.get(w["text_ru"].lower(), w["text_ru"])
+        if w["theme_title"] == "Действия" and w["text_ru"].lower() not in CLARIFY:
+            ru = f"ребёнок выполняет действие «{w['text_ru']}»"
+        prompt = PROMPT.format(ru=ru)
         try:
             png = provider.generate(prompt)
             files = {"file": (f"word_{w['id']}.png", io.BytesIO(png), "image/png")}

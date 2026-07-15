@@ -54,7 +54,7 @@
       return res.text();
     }
 
-    function tts(text) { try { const u = new SpeechSynthesisUtterance(text); speechSynthesis.cancel(); speechSynthesis.speak(u); } catch {} }
+    function tts(text) { /* отключено: браузерный голос читал татарский неверно */ }
     function playWordAudio(url, fallbackText) {
       const a = document.getElementById('audio-word');
       try { a.pause(); a.currentTime = 0; } catch {}

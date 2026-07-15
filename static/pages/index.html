@@ -105,13 +105,7 @@
       await renderMistakes();
     };
 
-    function speak(text) {
-      try {
-        const utter = new SpeechSynthesisUtterance(text);
-        // Пользователь может выбрать другой татарский голос при наличии
-        speechSynthesis.speak(utter);
-      } catch {}
-    }
+    function speak(text) { /* отключено: браузерный синтез читал татарский русским голосом */ }
 
     async function renderStudy() {
       const cont = document.getElementById('study');

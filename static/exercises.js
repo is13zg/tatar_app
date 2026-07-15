@@ -26,12 +26,38 @@
     });
   }
 
-  function speakRu(text) {
+  // Записанные инструкции (Сбер SaluteSpeech, tools/gen_ru_instructions.py).
+  // Если файла нет — фолбэк на браузерный синтез (он для русского звучит приемлемо).
+  const INSTR_AUDIO = {
+    'Новое слово!': 'novoe_slovo',
+    'Послушай и найди картинку': 'najdi_kartinku',
+    'Это правильная картинка?': 'pravilnaya_kartinka',
+    'Найди пары': 'najdi_pary',
+    'Разложи по корзинкам': 'razlozhi_po_korzinkam',
+    'Выбери кнопку со словом с картинки': 'vyberi_knopku',
+    'Собери слово из букв': 'soberi_slovo',
+    'Повтори за диктором': 'povtori_za_diktorom',
+    'Молодец!': 'molodec',
+    'Молодец! Отлично!': 'molodec_otlichno',
+  };
+  const missingInstr = new Set();
+  const ruAudioEl = new Audio();
+
+  function speakRuBrowser(text) {
     try {
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'ru-RU'; u.rate = 0.95;
       speechSynthesis.cancel(); speechSynthesis.speak(u);
     } catch (e) {}
+  }
+
+  function speakRu(text) {
+    const key = INSTR_AUDIO[text];
+    if (!key || missingInstr.has(key)) return speakRuBrowser(text);
+    try { ruAudioEl.pause(); ruAudioEl.currentTime = 0; } catch (e) {}
+    ruAudioEl.src = `/static/voice/ru/${key}.mp3`;
+    ruAudioEl.onerror = () => { missingInstr.add(key); speakRuBrowser(text); };
+    ruAudioEl.play().catch(() => { missingInstr.add(key); speakRuBrowser(text); });
   }
 
   const sfxGood = new Audio('/static/sounds/success.mp3');
