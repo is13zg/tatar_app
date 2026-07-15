@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..deps import get_current_admin
 from ..database import get_db
 from ..models import Theme, Word
+from ..tts import synthesize_to_file
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -202,3 +203,132 @@ async def words_json(
           added += 1
     await db.commit()
     return {"added": added, "updated": updated, "skipped": skipped, "theme_id": theme.id}
+
+
+@router.post("/import_units")
+async def import_units(
+    payload: dict = Body(...),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Bulk import of learning-path units.
+
+    payload = {"units": [{"title_ru", "title_tt", "icon_emoji", "order_index",
+                          "words": [{"text_ru", "text_tt", "emoji"}]}]}
+    """
+    def norm(s: str) -> str:
+        return s.strip().lower().replace('ё', 'е')
+
+    units = payload.get('units', [])
+    skip_existing_global = bool(payload.get('skip_existing_global'))
+    existing_tt: set[str] = set()
+    existing_ru: set[str] = set()
+    if skip_existing_global:
+        rows = (await db.execute(select(Word.text_tt, Word.text_ru))).all()
+        existing_tt = {norm(tt) for tt, _ in rows}
+        existing_ru = {norm(ru) for _, ru in rows}
+    themes_added = 0
+    added = 0
+    updated = 0
+    skipped_global = 0
+    for unit in units:
+        title_ru = (unit.get('title_ru') or '').strip()
+        if not title_ru:
+            continue
+        theme = (await db.execute(select(Theme).where(Theme.title_ru == title_ru))).scalar_one_or_none()
+        if not theme:
+            theme = Theme(title_ru=title_ru)
+            db.add(theme)
+            themes_added += 1
+        theme.title_tt = unit.get('title_tt') or theme.title_tt
+        theme.icon_emoji = unit.get('icon_emoji') or theme.icon_emoji
+        if unit.get('order_index') is not None:
+            theme.order_index = unit['order_index']
+        theme.description = unit.get('description') or theme.description
+        await db.flush()
+
+        for item in unit.get('words', []):
+            text_ru = (item.get('text_ru') or '').strip()
+            text_tt = (item.get('text_tt') or '').strip()
+            if not text_ru or not text_tt:
+                continue
+            existing = (await db.execute(select(Word).where(Word.theme_id == theme.id, Word.text_tt == text_tt))).scalar_one_or_none()
+            if existing:
+                existing.text_ru = text_ru
+                existing.emoji = item.get('emoji') or existing.emoji
+                updated += 1
+            elif skip_existing_global and (norm(text_tt) in existing_tt or norm(text_ru) in existing_ru):
+                skipped_global += 1
+            else:
+                db.add(Word(theme_id=theme.id, text_tt=text_tt, text_ru=text_ru, emoji=item.get('emoji')))
+                existing_tt.add(norm(text_tt))
+                existing_ru.add(norm(text_ru))
+                added += 1
+    await db.commit()
+    return {"themes_added": themes_added, "words_added": added, "words_updated": updated, "skipped_global": skipped_global}
+
+
+@router.post("/tts_word/{word_id}")
+async def tts_word(
+    word_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word:
+        raise HTTPException(status_code=404, detail="Слово не найдено")
+    try:
+        word.tts_url = await synthesize_to_file(word.text_tt)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка TTS: {e}")
+    await db.commit()
+    return {"word_id": word.id, "tts_url": word.tts_url}
+
+
+@router.post("/tts_all")
+async def tts_all(
+    limit: int = 500,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Synthesize speech for every word that has neither recorded audio nor cached TTS."""
+    words = (await db.execute(
+        select(Word).where(Word.audio_url.is_(None), Word.tts_url.is_(None)).limit(limit)
+    )).scalars().all()
+    done = 0
+    errors: list[str] = []
+    for w in words:
+        try:
+            w.tts_url = await synthesize_to_file(w.text_tt)
+            done += 1
+            await db.commit()
+        except Exception as e:
+            errors.append(f"{w.text_tt}: {e}")
+            if len(errors) >= 5:
+                break
+    return {"done": done, "remaining_errors": errors}
+
+
+@router.post("/word_image/{word_id}")
+async def word_image(
+    word_id: int,
+    file: UploadFile = File(...),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word:
+        raise HTTPException(status_code=404, detail="Слово не найдено")
+    ext = (file.filename or 'img.png').rsplit('.', 1)[-1].lower()
+    if ext not in ('png', 'jpg', 'jpeg', 'webp', 'svg'):
+        raise HTTPException(status_code=400, detail="Ожидается изображение (png/jpg/webp/svg)")
+
+    from pathlib import Path
+    from ..config import STATIC_DIR
+    target_dir = Path(STATIC_DIR) / 'image' / 'uploads'
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"word_{word.id}.{ext}"
+    target.write_bytes(await file.read())
+    word.image_url = f"/static/image/uploads/{target.name}"
+    await db.commit()
+    return {"word_id": word.id, "image_url": word.image_url}

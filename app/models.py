@@ -27,6 +27,9 @@ class Theme(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title_ru: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    title_tt: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    icon_emoji: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
 
     words: Mapped[list["Word"]] = relationship(back_populates="theme", cascade="all, delete-orphan")
 
@@ -40,6 +43,8 @@ class Word(Base):
     text_ru: Mapped[str] = mapped_column(String(120))
     image_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     audio_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    emoji: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    tts_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     theme: Mapped[Theme] = relationship(back_populates="words")
     progress: Mapped[list["UserProgress"]] = relationship(back_populates="word", cascade="all, delete-orphan")
@@ -58,12 +63,59 @@ class UserProgress(Base):
     word_id: Mapped[int] = mapped_column(ForeignKey("words.id", ondelete="CASCADE"))
     learned: Mapped[bool] = mapped_column(default=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    strength: Mapped[int] = mapped_column(Integer, default=0)
+    due_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    seen_count: Mapped[int] = mapped_column(Integer, default=0)
+    correct_count: Mapped[int] = mapped_column(Integer, default=0)
 
     user: Mapped[User] = relationship(back_populates="progress")
     word: Mapped[Word] = relationship(back_populates="progress")
 
     __table_args__ = (
         UniqueConstraint("user_id", "word_id", name="uq_user_word_progress"),
+    )
+
+
+class UnitProgress(Base):
+    __tablename__ = "unit_progress"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    theme_id: Mapped[int] = mapped_column(ForeignKey("themes.id", ondelete="CASCADE"))
+    stars: Mapped[int] = mapped_column(Integer, default=0)
+    lessons_done: Mapped[int] = mapped_column(Integer, default=0)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "theme_id", name="uq_user_theme_unit"),
+    )
+
+
+class DailyLesson(Base):
+    __tablename__ = "daily_lessons"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    date: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD
+    items_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    stars: Mapped[int] = mapped_column(Integer, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "date", name="uq_user_daily_date"),
+    )
+
+
+class UserSticker(Base):
+    __tablename__ = "user_stickers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    sticker: Mapped[str] = mapped_column(String(16))
+    earned_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "sticker", name="uq_user_sticker"),
     )
 
 

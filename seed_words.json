@@ -1,0 +1,2127 @@
+{
+ "units": [
+  {
+   "title_ru": "Знакомство и общение",
+   "title_tt": "Танышу һәм аралашу",
+   "icon_emoji": "👋",
+   "order_index": 1,
+   "words": [
+    {
+     "text_ru": "привет",
+     "text_tt": "сәлам",
+     "emoji": "👋"
+    },
+    {
+     "text_ru": "здравствуйте",
+     "text_tt": "исәнмесез",
+     "emoji": "🤝"
+    },
+    {
+     "text_ru": "доброе утро",
+     "text_tt": "хәерле иртә",
+     "emoji": "🌅"
+    },
+    {
+     "text_ru": "добрый день",
+     "text_tt": "хәерле көн",
+     "emoji": "☀️"
+    },
+    {
+     "text_ru": "добрый вечер",
+     "text_tt": "хәерле кичә",
+     "emoji": "🌇"
+    },
+    {
+     "text_ru": "до свидания",
+     "text_tt": "сау булыгыз",
+     "emoji": "👋"
+    },
+    {
+     "text_ru": "пока",
+     "text_tt": "сау бул",
+     "emoji": "🖐️"
+    },
+    {
+     "text_ru": "спасибо",
+     "text_tt": "рәхмәт",
+     "emoji": "🙏"
+    },
+    {
+     "text_ru": "пожалуйста",
+     "text_tt": "рәхим итегез",
+     "emoji": "😊"
+    },
+    {
+     "text_ru": "извините",
+     "text_tt": "гафу итегез",
+     "emoji": "🙇"
+    },
+    {
+     "text_ru": "да",
+     "text_tt": "әйе",
+     "emoji": "✅"
+    },
+    {
+     "text_ru": "нет",
+     "text_tt": "юк",
+     "emoji": "❌"
+    },
+    {
+     "text_ru": "как дела?",
+     "text_tt": "хәлләр ничек?",
+     "emoji": "🤗"
+    },
+    {
+     "text_ru": "хорошо",
+     "text_tt": "сәйбәт",
+     "emoji": "👍"
+    },
+    {
+     "text_ru": "плохо",
+     "text_tt": "начар",
+     "emoji": "👎"
+    },
+    {
+     "text_ru": "как тебя зовут?",
+     "text_tt": "исемең ничек?",
+     "emoji": "🙋"
+    },
+    {
+     "text_ru": "меня зовут",
+     "text_tt": "минем исемем",
+     "emoji": "📛"
+    },
+    {
+     "text_ru": "сколько тебе лет?",
+     "text_tt": "сиңа күпме яшь?",
+     "emoji": "🎂"
+    },
+    {
+     "text_ru": "мне 7 лет",
+     "text_tt": "миңа җиде яшь",
+     "emoji": "7️⃣"
+    },
+    {
+     "text_ru": "откуда ты?",
+     "text_tt": "син кайдан?",
+     "emoji": "🗺️"
+    },
+    {
+     "text_ru": "я из казани",
+     "text_tt": "мин казаннан",
+     "emoji": "🏙️"
+    },
+    {
+     "text_ru": "мальчик",
+     "text_tt": "малай",
+     "emoji": "👦"
+    },
+    {
+     "text_ru": "девочка",
+     "text_tt": "кыз",
+     "emoji": "👧"
+    },
+    {
+     "text_ru": "ребенок",
+     "text_tt": "бала",
+     "emoji": "🧒"
+    },
+    {
+     "text_ru": "дети",
+     "text_tt": "балалар",
+     "emoji": "👧👦"
+    },
+    {
+     "text_ru": "друг",
+     "text_tt": "дус",
+     "emoji": "🤝"
+    },
+    {
+     "text_ru": "подруга",
+     "text_tt": "кыз дус",
+     "emoji": "👭"
+    },
+    {
+     "text_ru": "мы",
+     "text_tt": "без",
+     "emoji": "👨‍👩‍👧"
+    },
+    {
+     "text_ru": "вы",
+     "text_tt": "сез",
+     "emoji": "🫵"
+    },
+    {
+     "text_ru": "они",
+     "text_tt": "алар",
+     "emoji": "👥"
+    },
+    {
+     "text_ru": "кто это?",
+     "text_tt": "бу кем?",
+     "emoji": "❓"
+    },
+    {
+     "text_ru": "что это?",
+     "text_tt": "бу нәрсәне?",
+     "emoji": "❔"
+    },
+    {
+     "text_ru": "очень приятно",
+     "text_tt": "бик шатмын",
+     "emoji": "😊"
+    },
+    {
+     "text_ru": "поздравляю",
+     "text_tt": "тәбрик итәм",
+     "emoji": "🎉"
+    },
+    {
+     "text_ru": "помоги",
+     "text_tt": "ярдәм ит",
+     "emoji": "🆘"
+    }
+   ]
+  },
+  {
+   "title_ru": "Животные",
+   "title_tt": "Хайваннар",
+   "icon_emoji": "🐱",
+   "order_index": 2,
+   "words": [
+    {
+     "text_ru": "животное",
+     "text_tt": "хайван",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "собака",
+     "text_tt": "эт",
+     "emoji": "🐶"
+    },
+    {
+     "text_ru": "кошка",
+     "text_tt": "мәче",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "корова",
+     "text_tt": "сыйыр",
+     "emoji": "🐮"
+    },
+    {
+     "text_ru": "лошадь",
+     "text_tt": "ат",
+     "emoji": "🐴"
+    },
+    {
+     "text_ru": "овца",
+     "text_tt": "сарык",
+     "emoji": "🐑"
+    },
+    {
+     "text_ru": "коза",
+     "text_tt": "кәҗә",
+     "emoji": "🐐"
+    },
+    {
+     "text_ru": "свинья",
+     "text_tt": "дөнья",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "кролик",
+     "text_tt": "йомран",
+     "emoji": "🐰"
+    },
+    {
+     "text_ru": "мышь",
+     "text_tt": "тиске",
+     "emoji": "🐭"
+    },
+    {
+     "text_ru": "медведь",
+     "text_tt": "аю",
+     "emoji": "🐻"
+    },
+    {
+     "text_ru": "волк",
+     "text_tt": "бүре",
+     "emoji": "🐺"
+    },
+    {
+     "text_ru": "лиса",
+     "text_tt": "төлке",
+     "emoji": "🦊"
+    },
+    {
+     "text_ru": "заяц",
+     "text_tt": "куян",
+     "emoji": "🐰"
+    },
+    {
+     "text_ru": "белка",
+     "text_tt": "секертке",
+     "emoji": "🐿️"
+    },
+    {
+     "text_ru": "еж",
+     "text_tt": "керпе",
+     "emoji": "🦔"
+    },
+    {
+     "text_ru": "лев",
+     "text_tt": "арыслан",
+     "emoji": "🦁"
+    },
+    {
+     "text_ru": "тигр",
+     "text_tt": "юлбарыс",
+     "emoji": "🐯"
+    },
+    {
+     "text_ru": "слон",
+     "text_tt": "слон",
+     "emoji": "🐘"
+    },
+    {
+     "text_ru": "обезьяна",
+     "text_tt": "маймыл",
+     "emoji": "🐵"
+    },
+    {
+     "text_ru": "птица",
+     "text_tt": "кош",
+     "emoji": "🐦"
+    },
+    {
+     "text_ru": "воробей",
+     "text_tt": "чыпчык",
+     "emoji": "🐦"
+    },
+    {
+     "text_ru": "ворона",
+     "text_tt": "карга",
+     "emoji": "🐦‍⬛"
+    },
+    {
+     "text_ru": "голубь",
+     "text_tt": "күгәрчен",
+     "emoji": "🕊️"
+    },
+    {
+     "text_ru": "попугай",
+     "text_tt": "попугай",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "петух",
+     "text_tt": "әтәч",
+     "emoji": "🐓"
+    },
+    {
+     "text_ru": "курица",
+     "text_tt": "тавык",
+     "emoji": "🐔"
+    },
+    {
+     "text_ru": "цыпленок",
+     "text_tt": "чебеш",
+     "emoji": "🐤"
+    },
+    {
+     "text_ru": "гусь",
+     "text_tt": "каз",
+     "emoji": "🪿"
+    },
+    {
+     "text_ru": "утка",
+     "text_tt": "үрдәк",
+     "emoji": "🦆"
+    },
+    {
+     "text_ru": "лягушка",
+     "text_tt": "бака",
+     "emoji": "🐸"
+    },
+    {
+     "text_ru": "рыба",
+     "text_tt": "балык",
+     "emoji": "🐟"
+    },
+    {
+     "text_ru": "насекомое",
+     "text_tt": "бөҗәк",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "бабочка",
+     "text_tt": "күбәләк",
+     "emoji": "🦋"
+    },
+    {
+     "text_ru": "муха",
+     "text_tt": "чыбын",
+     "emoji": "🪰"
+    },
+    {
+     "text_ru": "комар",
+     "text_tt": "комар",
+     "emoji": "🦟"
+    },
+    {
+     "text_ru": "муравей",
+     "text_tt": "кырмыска",
+     "emoji": "🐜"
+    },
+    {
+     "text_ru": "пчела",
+     "text_tt": "бал корты",
+     "emoji": "🐝"
+    },
+    {
+     "text_ru": "хвост",
+     "text_tt": "койрык",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "лапа",
+     "text_tt": "аяк",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "лес",
+     "text_tt": "урман",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "зоопарк",
+     "text_tt": "зоопарк",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "дикий",
+     "text_tt": "кыргый",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "домашний",
+     "text_tt": "йорт",
+     "emoji": "🐱"
+    },
+    {
+     "text_ru": "нора",
+     "text_tt": "оя",
+     "emoji": "🐱"
+    }
+   ]
+  },
+  {
+   "title_ru": "Цвета и формы",
+   "title_tt": "Төсләр һәм рәвешләр",
+   "icon_emoji": "🎨",
+   "order_index": 4,
+   "words": [
+    {
+     "text_ru": "цвет",
+     "text_tt": "төс",
+     "emoji": "🌈"
+    },
+    {
+     "text_ru": "белый",
+     "text_tt": "ак",
+     "emoji": "⚪"
+    },
+    {
+     "text_ru": "черный",
+     "text_tt": "кара",
+     "emoji": "⚫"
+    },
+    {
+     "text_ru": "красный",
+     "text_tt": "кызыл",
+     "emoji": "🔴"
+    },
+    {
+     "text_ru": "синий",
+     "text_tt": "зәңгәр",
+     "emoji": "🔵"
+    },
+    {
+     "text_ru": "зеленый",
+     "text_tt": "яшел",
+     "emoji": "🟢"
+    },
+    {
+     "text_ru": "желтый",
+     "text_tt": "сары",
+     "emoji": "🟡"
+    },
+    {
+     "text_ru": "коричневый",
+     "text_tt": "көрән",
+     "emoji": "🟤"
+    },
+    {
+     "text_ru": "розовый",
+     "text_tt": "ал",
+     "emoji": "🩷"
+    },
+    {
+     "text_ru": "оранжевый",
+     "text_tt": "кызгылт сары",
+     "emoji": "🟠"
+    },
+    {
+     "text_ru": "фиолетовый",
+     "text_tt": "шәмәхә",
+     "emoji": "🟣"
+    },
+    {
+     "text_ru": "серый",
+     "text_tt": "соры",
+     "emoji": "🩶"
+    },
+    {
+     "text_ru": "голубой",
+     "text_tt": "күк",
+     "emoji": "🩵"
+    },
+    {
+     "text_ru": "разноцветный",
+     "text_tt": "төрле төсле",
+     "emoji": "🎨"
+    },
+    {
+     "text_ru": "круг",
+     "text_tt": "түгәрәк",
+     "emoji": "⭕"
+    },
+    {
+     "text_ru": "квадрат",
+     "text_tt": "квадрат",
+     "emoji": "🟥"
+    },
+    {
+     "text_ru": "треугольник",
+     "text_tt": "өчпочмак",
+     "emoji": "🔺"
+    },
+    {
+     "text_ru": "линия",
+     "text_tt": "сызык",
+     "emoji": "📏"
+    },
+    {
+     "text_ru": "светлый",
+     "text_tt": "ачык",
+     "emoji": "🎨"
+    },
+    {
+     "text_ru": "темный",
+     "text_tt": "тоньык",
+     "emoji": "🎨"
+    },
+    {
+     "text_ru": "большой",
+     "text_tt": "зур",
+     "emoji": "🎨"
+    },
+    {
+     "text_ru": "маленький",
+     "text_tt": "нәни",
+     "emoji": "🎨"
+    },
+    {
+     "text_ru": "длинный",
+     "text_tt": "озын",
+     "emoji": "🎨"
+    },
+    {
+     "text_ru": "короткий",
+     "text_tt": "кыска",
+     "emoji": "🎨"
+    },
+    {
+     "text_ru": "форма",
+     "text_tt": "рәвеш",
+     "emoji": "🔷"
+    }
+   ]
+  },
+  {
+   "title_ru": "Семья и дом",
+   "title_tt": "Гаилә һәм өй",
+   "icon_emoji": "🏠",
+   "order_index": 5,
+   "words": [
+    {
+     "text_ru": "семья",
+     "text_tt": "гайлә",
+     "emoji": "👨‍👩‍👧‍👦"
+    },
+    {
+     "text_ru": "мама",
+     "text_tt": "әни",
+     "emoji": "👩"
+    },
+    {
+     "text_ru": "папа",
+     "text_tt": "әти",
+     "emoji": "👨"
+    },
+    {
+     "text_ru": "бабушка",
+     "text_tt": "әби",
+     "emoji": "👵"
+    },
+    {
+     "text_ru": "дедушка",
+     "text_tt": "бабай",
+     "emoji": "👴"
+    },
+    {
+     "text_ru": "брат",
+     "text_tt": "абый",
+     "emoji": "👦"
+    },
+    {
+     "text_ru": "брат",
+     "text_tt": "энекәш",
+     "emoji": "👦"
+    },
+    {
+     "text_ru": "сестра",
+     "text_tt": "апа",
+     "emoji": "👧"
+    },
+    {
+     "text_ru": "сестра",
+     "text_tt": "сеңел",
+     "emoji": "👧"
+    },
+    {
+     "text_ru": "тетя",
+     "text_tt": "апа",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "дядя",
+     "text_tt": "абый",
+     "emoji": "👨‍🦱"
+    },
+    {
+     "text_ru": "сын",
+     "text_tt": "ул",
+     "emoji": "👦"
+    },
+    {
+     "text_ru": "дочь",
+     "text_tt": "кыз",
+     "emoji": "👧"
+    },
+    {
+     "text_ru": "родители",
+     "text_tt": "әти-әниләр",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "дом",
+     "text_tt": "өй",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "квартира",
+     "text_tt": "квартира",
+     "emoji": "🏢"
+    },
+    {
+     "text_ru": "комната",
+     "text_tt": "бүлмә",
+     "emoji": "🚪"
+    },
+    {
+     "text_ru": "кухня",
+     "text_tt": "ашмәче",
+     "emoji": "🍳"
+    },
+    {
+     "text_ru": "ванная",
+     "text_tt": "ванна бүлмәсе",
+     "emoji": "🛁"
+    },
+    {
+     "text_ru": "прихожая",
+     "text_tt": "коридор",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "стена",
+     "text_tt": "дивар",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "пол",
+     "text_tt": "идән",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "потолок",
+     "text_tt": "түшәм",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "крыша",
+     "text_tt": "түбә",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "кровать",
+     "text_tt": "карават",
+     "emoji": "🛏️"
+    },
+    {
+     "text_ru": "шкаф",
+     "text_tt": "шкаф",
+     "emoji": "🗄️"
+    },
+    {
+     "text_ru": "диван",
+     "text_tt": "диван",
+     "emoji": "🛋️"
+    },
+    {
+     "text_ru": "кресло",
+     "text_tt": "кресло",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "телевизор",
+     "text_tt": "телевизор",
+     "emoji": "📺"
+    },
+    {
+     "text_ru": "ковер",
+     "text_tt": "кәләм",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "зеркало",
+     "text_tt": "көзге",
+     "emoji": "🪞"
+    },
+    {
+     "text_ru": "часы",
+     "text_tt": "сәгать",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "лампа",
+     "text_tt": "лампа",
+     "emoji": "💡"
+    },
+    {
+     "text_ru": "посуда",
+     "text_tt": "савыт-саба",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "тарелка",
+     "text_tt": "тәлинкә",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "чашка",
+     "text_tt": "чәшкә",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "ложка",
+     "text_tt": "кашык",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "вилка",
+     "text_tt": "чәнечке",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "нож",
+     "text_tt": "пычак",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "чайник",
+     "text_tt": "чәйнек",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "кастрюля",
+     "text_tt": "кәстрүл",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "игрушка",
+     "text_tt": "уенчык",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "ключ",
+     "text_tt": "төткеч",
+     "emoji": "🔑"
+    },
+    {
+     "text_ru": "телефон",
+     "text_tt": "телефон",
+     "emoji": "📱"
+    },
+    {
+     "text_ru": "подушка",
+     "text_tt": "мендәр",
+     "emoji": "🏠"
+    }
+   ]
+  },
+  {
+   "title_ru": "Еда и напитки",
+   "title_tt": "Ашамлыклар",
+   "icon_emoji": "🍽️",
+   "order_index": 6,
+   "words": [
+    {
+     "text_ru": "еда",
+     "text_tt": "ашамлык",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "хлеб",
+     "text_tt": "икмәк",
+     "emoji": "🍞"
+    },
+    {
+     "text_ru": "молоко",
+     "text_tt": "сөт",
+     "emoji": "🥛"
+    },
+    {
+     "text_ru": "вода",
+     "text_tt": "су",
+     "emoji": "💧"
+    },
+    {
+     "text_ru": "чай",
+     "text_tt": "чәй",
+     "emoji": "🍵"
+    },
+    {
+     "text_ru": "сахар",
+     "text_tt": "шикәр",
+     "emoji": "🍬"
+    },
+    {
+     "text_ru": "соль",
+     "text_tt": "төз",
+     "emoji": "🧂"
+    },
+    {
+     "text_ru": "масло",
+     "text_tt": "май",
+     "emoji": "🧈"
+    },
+    {
+     "text_ru": "сыр",
+     "text_tt": "сыр",
+     "emoji": "🧀"
+    },
+    {
+     "text_ru": "колбаса",
+     "text_tt": "колбаса",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "мясо",
+     "text_tt": "ит",
+     "emoji": "🥩"
+    },
+    {
+     "text_ru": "рыба",
+     "text_tt": "балык",
+     "emoji": "🐟"
+    },
+    {
+     "text_ru": "курица",
+     "text_tt": "тавык",
+     "emoji": "🐔"
+    },
+    {
+     "text_ru": "яйцо",
+     "text_tt": "күкәй",
+     "emoji": "🥚"
+    },
+    {
+     "text_ru": "суп",
+     "text_tt": "шурпа",
+     "emoji": "🍲"
+    },
+    {
+     "text_ru": "каша",
+     "text_tt": "бутка",
+     "emoji": "🥣"
+    },
+    {
+     "text_ru": "котлета",
+     "text_tt": "котлета",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "картошка",
+     "text_tt": "картоф",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "макароны",
+     "text_tt": "макарон",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "рис",
+     "text_tt": "дөге",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "сок",
+     "text_tt": "сок",
+     "emoji": "🧃"
+    },
+    {
+     "text_ru": "компот",
+     "text_tt": "компот",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "пирог",
+     "text_tt": "бәлеш",
+     "emoji": "🥧"
+    },
+    {
+     "text_ru": "блины",
+     "text_tt": "коймак",
+     "emoji": "🥞"
+    },
+    {
+     "text_ru": "мед",
+     "text_tt": "бал",
+     "emoji": "🍯"
+    },
+    {
+     "text_ru": "варенье",
+     "text_tt": "кайнатма",
+     "emoji": "🍓"
+    },
+    {
+     "text_ru": "конфета",
+     "text_tt": "кәнфит",
+     "emoji": "🍬"
+    },
+    {
+     "text_ru": "шоколад",
+     "text_tt": "шоколад",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "мороженое",
+     "text_tt": "туңдырма",
+     "emoji": "🍦"
+    },
+    {
+     "text_ru": "торт",
+     "text_tt": "торт",
+     "emoji": "🎂"
+    },
+    {
+     "text_ru": "печенье",
+     "text_tt": "печенье",
+     "emoji": "🍪"
+    },
+    {
+     "text_ru": "фрукты",
+     "text_tt": "җимешләр",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "овощи",
+     "text_tt": "яшелчәләр",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "завтрак",
+     "text_tt": "иртәнге аш",
+     "emoji": "🍳"
+    },
+    {
+     "text_ru": "обед",
+     "text_tt": "төшке аш",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "ужин",
+     "text_tt": "кичке аш",
+     "emoji": "🌙"
+    },
+    {
+     "text_ru": "вкусный",
+     "text_tt": "тәмле",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "невкусный",
+     "text_tt": "тәмсез",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "сладкий",
+     "text_tt": "тәмле",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "горький",
+     "text_tt": "әче",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "кислый",
+     "text_tt": "әче",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "горячий",
+     "text_tt": "кайнар",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "холодный",
+     "text_tt": "салкын",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "аппетит",
+     "text_tt": "аппетит",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "пить",
+     "text_tt": "эчү",
+     "emoji": "🥤"
+    }
+   ]
+  },
+  {
+   "title_ru": "Человек и тело",
+   "title_tt": "Кеше һәм тән",
+   "icon_emoji": "🧍",
+   "order_index": 9,
+   "words": [
+    {
+     "text_ru": "человек",
+     "text_tt": "кеше",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "голова",
+     "text_tt": "баш",
+     "emoji": "🗣️"
+    },
+    {
+     "text_ru": "лицо",
+     "text_tt": "йөз",
+     "emoji": "🙂"
+    },
+    {
+     "text_ru": "волосы",
+     "text_tt": "чәч",
+     "emoji": "💇"
+    },
+    {
+     "text_ru": "глаз",
+     "text_tt": "күз",
+     "emoji": "👁️"
+    },
+    {
+     "text_ru": "глаза",
+     "text_tt": "күзләр",
+     "emoji": "👀"
+    },
+    {
+     "text_ru": "нос",
+     "text_tt": "борын",
+     "emoji": "👃"
+    },
+    {
+     "text_ru": "рот",
+     "text_tt": "авыз",
+     "emoji": "👄"
+    },
+    {
+     "text_ru": "зуб",
+     "text_tt": "теш",
+     "emoji": "🦷"
+    },
+    {
+     "text_ru": "язык",
+     "text_tt": "тел",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "ухо",
+     "text_tt": "колак",
+     "emoji": "👂"
+    },
+    {
+     "text_ru": "уши",
+     "text_tt": "колаклар",
+     "emoji": "👂"
+    },
+    {
+     "text_ru": "шея",
+     "text_tt": "мәен",
+     "emoji": "🦒"
+    },
+    {
+     "text_ru": "плечо",
+     "text_tt": "иел",
+     "emoji": "💪"
+    },
+    {
+     "text_ru": "рука",
+     "text_tt": "кул",
+     "emoji": "✋"
+    },
+    {
+     "text_ru": "палец",
+     "text_tt": "бармак",
+     "emoji": "☝️"
+    },
+    {
+     "text_ru": "нога",
+     "text_tt": "аяк",
+     "emoji": "🦵"
+    },
+    {
+     "text_ru": "спина",
+     "text_tt": "арка",
+     "emoji": "🔙"
+    },
+    {
+     "text_ru": "живот",
+     "text_tt": "корсак",
+     "emoji": "🫃"
+    },
+    {
+     "text_ru": "сердце",
+     "text_tt": "йөрәк",
+     "emoji": "❤️"
+    },
+    {
+     "text_ru": "кровь",
+     "text_tt": "кан",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "рост",
+     "text_tt": "буй",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "имя",
+     "text_tt": "исем",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "фамилия",
+     "text_tt": "фамилия",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "мама",
+     "text_tt": "әни",
+     "emoji": "👩"
+    },
+    {
+     "text_ru": "одежда",
+     "text_tt": "кием",
+     "emoji": "👚"
+    },
+    {
+     "text_ru": "обувь",
+     "text_tt": "аяк киеме",
+     "emoji": "👞"
+    },
+    {
+     "text_ru": "голос",
+     "text_tt": "тавыш",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "смех",
+     "text_tt": "көлү",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "слезы",
+     "text_tt": "күз яшьләре",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "улыбка",
+     "text_tt": "елмаю",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "здоровье",
+     "text_tt": "сәламәтлек",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "ум",
+     "text_tt": "акыл",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "сила",
+     "text_tt": "көч",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "родина",
+     "text_tt": "туган як",
+     "emoji": "🧍"
+    }
+   ]
+  },
+  {
+   "title_ru": "Одежда и обувь",
+   "title_tt": "Кием-салым",
+   "icon_emoji": "👕",
+   "order_index": 10,
+   "words": [
+    {
+     "text_ru": "одежда",
+     "text_tt": "кием",
+     "emoji": "👚"
+    },
+    {
+     "text_ru": "платье",
+     "text_tt": "күлмәк",
+     "emoji": "👗"
+    },
+    {
+     "text_ru": "рубашка",
+     "text_tt": "күлмәк",
+     "emoji": "👔"
+    },
+    {
+     "text_ru": "брюки",
+     "text_tt": "шалвар",
+     "emoji": "👖"
+    },
+    {
+     "text_ru": "юбка",
+     "text_tt": "юбка",
+     "emoji": "👗"
+    },
+    {
+     "text_ru": "кофта",
+     "text_tt": "кофта",
+     "emoji": "👕"
+    },
+    {
+     "text_ru": "свитер",
+     "text_tt": "свитер",
+     "emoji": "🧶"
+    },
+    {
+     "text_ru": "футболка",
+     "text_tt": "футболка",
+     "emoji": "👕"
+    },
+    {
+     "text_ru": "шорты",
+     "text_tt": "шорты",
+     "emoji": "🩳"
+    },
+    {
+     "text_ru": "куртка",
+     "text_tt": "куртка",
+     "emoji": "🧥"
+    },
+    {
+     "text_ru": "пальто",
+     "text_tt": "пальто",
+     "emoji": "🧥"
+    },
+    {
+     "text_ru": "шапка",
+     "text_tt": "бурек",
+     "emoji": "🧢"
+    },
+    {
+     "text_ru": "шарф",
+     "text_tt": "шарф",
+     "emoji": "🧣"
+    },
+    {
+     "text_ru": "варежки",
+     "text_tt": "пәлмәләр",
+     "emoji": "🧤"
+    },
+    {
+     "text_ru": "носки",
+     "text_tt": "оекбаш",
+     "emoji": "🧦"
+    },
+    {
+     "text_ru": "колготки",
+     "text_tt": "колготки",
+     "emoji": "👕"
+    },
+    {
+     "text_ru": "обувь",
+     "text_tt": "аяк киеме",
+     "emoji": "👞"
+    },
+    {
+     "text_ru": "туфли",
+     "text_tt": "туфли",
+     "emoji": "👠"
+    },
+    {
+     "text_ru": "ботинки",
+     "text_tt": "ботинки",
+     "emoji": "🥾"
+    },
+    {
+     "text_ru": "сапоги",
+     "text_tt": "итекләр",
+     "emoji": "👢"
+    },
+    {
+     "text_ru": "кроссовки",
+     "text_tt": "кроссовки",
+     "emoji": "👟"
+    },
+    {
+     "text_ru": "тапочки",
+     "text_tt": "тапочкалар",
+     "emoji": "🩴"
+    },
+    {
+     "text_ru": "ремень",
+     "text_tt": "пута",
+     "emoji": "🩹"
+    },
+    {
+     "text_ru": "карман",
+     "text_tt": "кесә",
+     "emoji": "👖"
+    },
+    {
+     "text_ru": "пуговица",
+     "text_tt": "төймә",
+     "emoji": "🔘"
+    },
+    {
+     "text_ru": "молния",
+     "text_tt": "молния",
+     "emoji": "👕"
+    },
+    {
+     "text_ru": "платок",
+     "text_tt": "яулык",
+     "emoji": "👕"
+    },
+    {
+     "text_ru": "костюм",
+     "text_tt": "костюм",
+     "emoji": "🕴️"
+    },
+    {
+     "text_ru": "пижама",
+     "text_tt": "пижама",
+     "emoji": "🛌"
+    },
+    {
+     "text_ru": "зонт",
+     "text_tt": "кулчатыр",
+     "emoji": "👕"
+    }
+   ]
+  },
+  {
+   "title_ru": "Действия",
+   "title_tt": "Эш-хәрәкәтләр",
+   "icon_emoji": "🏃",
+   "order_index": 11,
+   "words": [
+    {
+     "text_ru": "идти",
+     "text_tt": "бару",
+     "emoji": "🚶"
+    },
+    {
+     "text_ru": "бежать",
+     "text_tt": "йөгерү",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "стоять",
+     "text_tt": "басып тору",
+     "emoji": "🧍"
+    },
+    {
+     "text_ru": "сидеть",
+     "text_tt": "утыру",
+     "emoji": "🪑"
+    },
+    {
+     "text_ru": "лежать",
+     "text_tt": "яту",
+     "emoji": "🛌"
+    },
+    {
+     "text_ru": "читать",
+     "text_tt": "уку",
+     "emoji": "📖"
+    },
+    {
+     "text_ru": "писать",
+     "text_tt": "язу",
+     "emoji": "✍️"
+    },
+    {
+     "text_ru": "считать",
+     "text_tt": "санау",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "рисовать",
+     "text_tt": "рәсем ясау",
+     "emoji": "🎨"
+    },
+    {
+     "text_ru": "слушать",
+     "text_tt": "тыңлау",
+     "emoji": "👂"
+    },
+    {
+     "text_ru": "смотреть",
+     "text_tt": "карау",
+     "emoji": "👀"
+    },
+    {
+     "text_ru": "говорить",
+     "text_tt": "сөйләү",
+     "emoji": "🗣️"
+    },
+    {
+     "text_ru": "думать",
+     "text_tt": "уйлау",
+     "emoji": "🤔"
+    },
+    {
+     "text_ru": "знать",
+     "text_tt": "белү",
+     "emoji": "🧠"
+    },
+    {
+     "text_ru": "понимать",
+     "text_tt": "аңлау",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "играть",
+     "text_tt": "уйнау",
+     "emoji": "🎮"
+    },
+    {
+     "text_ru": "петь",
+     "text_tt": "җырлау",
+     "emoji": "🎤"
+    },
+    {
+     "text_ru": "танцевать",
+     "text_tt": "бию",
+     "emoji": "💃"
+    },
+    {
+     "text_ru": "спать",
+     "text_tt": "йоклау",
+     "emoji": "😴"
+    },
+    {
+     "text_ru": "просыпаться",
+     "text_tt": "уяну",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "кушать",
+     "text_tt": "ашау",
+     "emoji": "🍽️"
+    },
+    {
+     "text_ru": "пить",
+     "text_tt": "эчү",
+     "emoji": "🥤"
+    },
+    {
+     "text_ru": "любить",
+     "text_tt": "ярату",
+     "emoji": "❤️"
+    },
+    {
+     "text_ru": "помогать",
+     "text_tt": "ярдәм итү",
+     "emoji": "🤝"
+    },
+    {
+     "text_ru": "спрашивать",
+     "text_tt": "сорау",
+     "emoji": "❓"
+    },
+    {
+     "text_ru": "отвечать",
+     "text_tt": "җавап бирү",
+     "emoji": "💬"
+    },
+    {
+     "text_ru": "открывать",
+     "text_tt": "ачу",
+     "emoji": "🔓"
+    },
+    {
+     "text_ru": "закрывать",
+     "text_tt": "ябу",
+     "emoji": "🔒"
+    },
+    {
+     "text_ru": "дать",
+     "text_tt": "бирү",
+     "emoji": "🤲"
+    },
+    {
+     "text_ru": "взять",
+     "text_tt": "алу",
+     "emoji": "✊"
+    },
+    {
+     "text_ru": "искать",
+     "text_tt": "эзләү",
+     "emoji": "🔍"
+    },
+    {
+     "text_ru": "найти",
+     "text_tt": "табу",
+     "emoji": "🎯"
+    },
+    {
+     "text_ru": "сделать",
+     "text_tt": "ясау",
+     "emoji": "🛠️"
+    },
+    {
+     "text_ru": "жить",
+     "text_tt": "яшәү",
+     "emoji": "🏠"
+    },
+    {
+     "text_ru": "учиться",
+     "text_tt": "уку",
+     "emoji": "📚"
+    },
+    {
+     "text_ru": "смеяться",
+     "text_tt": "көлү",
+     "emoji": "😂"
+    },
+    {
+     "text_ru": "плакать",
+     "text_tt": "елау",
+     "emoji": "😢"
+    },
+    {
+     "text_ru": "мыть",
+     "text_tt": "юу",
+     "emoji": "🧼"
+    },
+    {
+     "text_ru": "одеваться",
+     "text_tt": "киенү",
+     "emoji": "👕"
+    },
+    {
+     "text_ru": "гулять",
+     "text_tt": "йөрү",
+     "emoji": "🚶"
+    },
+    {
+     "text_ru": "прыгать",
+     "text_tt": "секерү",
+     "emoji": "⛹️"
+    },
+    {
+     "text_ru": "лететь",
+     "text_tt": "очу",
+     "emoji": "🛫"
+    },
+    {
+     "text_ru": "плыть",
+     "text_tt": "йөзү",
+     "emoji": "🏊"
+    },
+    {
+     "text_ru": "покупать",
+     "text_tt": "сатып алу",
+     "emoji": "🛒"
+    },
+    {
+     "text_ru": "приходить",
+     "text_tt": "килү",
+     "emoji": "🚪"
+    },
+    {
+     "text_ru": "уходить",
+     "text_tt": "китү",
+     "emoji": "👋"
+    },
+    {
+     "text_ru": "сказать",
+     "text_tt": "әйтү",
+     "emoji": "💬"
+    },
+    {
+     "text_ru": "показывать",
+     "text_tt": "күрсәтү",
+     "emoji": "👉"
+    },
+    {
+     "text_ru": "повторять",
+     "text_tt": "кабатлау",
+     "emoji": "🔁"
+    },
+    {
+     "text_ru": "забыть",
+     "text_tt": "оныту",
+     "emoji": "🤷"
+    },
+    {
+     "text_ru": "помнить",
+     "text_tt": "хәтерләү",
+     "emoji": "🧠"
+    },
+    {
+     "text_ru": "болеть",
+     "text_tt": "авыру",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "сидеть тихо",
+     "text_tt": "тын утыру",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "встать",
+     "text_tt": "басу",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "садиться",
+     "text_tt": "утыру",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "собрать",
+     "text_tt": "җыю",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "вырезать",
+     "text_tt": "кайчылау",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "клеить",
+     "text_tt": "клейлау",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "раскрашивать",
+     "text_tt": "буяу",
+     "emoji": "🏃"
+    },
+    {
+     "text_ru": "чистить",
+     "text_tt": "чистарту",
+     "emoji": "🏃"
+    }
+   ]
+  },
+  {
+   "title_ru": "Время и сезоны",
+   "title_tt": "Вакыт",
+   "icon_emoji": "🍂",
+   "order_index": 13,
+   "words": [
+    {
+     "text_ru": "время",
+     "text_tt": "вакыт",
+     "emoji": "⏰"
+    },
+    {
+     "text_ru": "час",
+     "text_tt": "сәгать",
+     "emoji": "🕐"
+    },
+    {
+     "text_ru": "минута",
+     "text_tt": "минут",
+     "emoji": "⏱️"
+    },
+    {
+     "text_ru": "день",
+     "text_tt": "көн",
+     "emoji": "☀️"
+    },
+    {
+     "text_ru": "ночь",
+     "text_tt": "кичә",
+     "emoji": "🌙"
+    },
+    {
+     "text_ru": "утро",
+     "text_tt": "иртә",
+     "emoji": "🌅"
+    },
+    {
+     "text_ru": "вечер",
+     "text_tt": "кичә",
+     "emoji": "🌇"
+    },
+    {
+     "text_ru": "сегодня",
+     "text_tt": "бүген",
+     "emoji": "📍"
+    },
+    {
+     "text_ru": "вчера",
+     "text_tt": "кичә",
+     "emoji": "⬅️"
+    },
+    {
+     "text_ru": "завтра",
+     "text_tt": "иртәгә",
+     "emoji": "➡️"
+    },
+    {
+     "text_ru": "неделя",
+     "text_tt": "атна",
+     "emoji": "🗓️"
+    },
+    {
+     "text_ru": "понедельник",
+     "text_tt": "дүшәмбе",
+     "emoji": "1️⃣"
+    },
+    {
+     "text_ru": "вторник",
+     "text_tt": "сәршәмбе",
+     "emoji": "2️⃣"
+    },
+    {
+     "text_ru": "среда",
+     "text_tt": "чәршәмбе",
+     "emoji": "3️⃣"
+    },
+    {
+     "text_ru": "четверг",
+     "text_tt": "пәнҗешәмбе",
+     "emoji": "4️⃣"
+    },
+    {
+     "text_ru": "пятница",
+     "text_tt": "җомга",
+     "emoji": "5️⃣"
+    },
+    {
+     "text_ru": "суббота",
+     "text_tt": "шәмбе",
+     "emoji": "6️⃣"
+    },
+    {
+     "text_ru": "воскресенье",
+     "text_tt": "якшәмбе",
+     "emoji": "7️⃣"
+    },
+    {
+     "text_ru": "год",
+     "text_tt": "ел",
+     "emoji": "🗓️"
+    },
+    {
+     "text_ru": "месяц",
+     "text_tt": "ай",
+     "emoji": "📆"
+    },
+    {
+     "text_ru": "время года",
+     "text_tt": "ел фасылы",
+     "emoji": "🍂"
+    },
+    {
+     "text_ru": "осень",
+     "text_tt": "көз",
+     "emoji": "🍂"
+    },
+    {
+     "text_ru": "зима",
+     "text_tt": "кыш",
+     "emoji": "❄️"
+    },
+    {
+     "text_ru": "весна",
+     "text_tt": "яз",
+     "emoji": "🌷"
+    },
+    {
+     "text_ru": "лето",
+     "text_tt": "җәй",
+     "emoji": "☀️"
+    },
+    {
+     "text_ru": "праздник",
+     "text_tt": "бәйрәм",
+     "emoji": "🎉"
+    },
+    {
+     "text_ru": "день рождения",
+     "text_tt": "туган көн",
+     "emoji": "🍂"
+    },
+    {
+     "text_ru": "новый год",
+     "text_tt": "яңа ел",
+     "emoji": "🍂"
+    },
+    {
+     "text_ru": "выходной",
+     "text_tt": "ял көне",
+     "emoji": "🍂"
+    },
+    {
+     "text_ru": "каникулы",
+     "text_tt": "каникуллар",
+     "emoji": "🍂"
+    }
+   ]
+  },
+  {
+   "title_ru": "Школа и класс",
+   "title_tt": "Мәктәп һәм сыйныф",
+   "icon_emoji": "🎒",
+   "order_index": 16,
+   "words": [
+    {
+     "text_ru": "школа",
+     "text_tt": "мәктәп",
+     "emoji": "🏫"
+    },
+    {
+     "text_ru": "класс",
+     "text_tt": "сыйныф",
+     "emoji": "🚪"
+    },
+    {
+     "text_ru": "урок",
+     "text_tt": "дәрес",
+     "emoji": "📖"
+    },
+    {
+     "text_ru": "учитель",
+     "text_tt": "укытучы",
+     "emoji": "🧑‍🏫"
+    },
+    {
+     "text_ru": "ученик",
+     "text_tt": "укучы",
+     "emoji": "🧑‍🎓"
+    },
+    {
+     "text_ru": "перемена",
+     "text_tt": "тәнәфес",
+     "emoji": "🔔"
+    },
+    {
+     "text_ru": "парта",
+     "text_tt": "парта",
+     "emoji": "🪑"
+    },
+    {
+     "text_ru": "стул",
+     "text_tt": "урындык",
+     "emoji": "🪑"
+    },
+    {
+     "text_ru": "стол",
+     "text_tt": "стел",
+     "emoji": "🪑"
+    },
+    {
+     "text_ru": "доска",
+     "text_tt": "доска",
+     "emoji": "🖼️"
+    },
+    {
+     "text_ru": "мел",
+     "text_tt": "бур",
+     "emoji": "🖍️"
+    },
+    {
+     "text_ru": "тетрадь",
+     "text_tt": "дәфтәр",
+     "emoji": "📓"
+    },
+    {
+     "text_ru": "книга",
+     "text_tt": "китап",
+     "emoji": "📕"
+    },
+    {
+     "text_ru": "учебник",
+     "text_tt": "дәреслек",
+     "emoji": "📘"
+    },
+    {
+     "text_ru": "дневник",
+     "text_tt": "көндәлек",
+     "emoji": "📔"
+    },
+    {
+     "text_ru": "портфель",
+     "text_tt": "сумка",
+     "emoji": "🎒"
+    },
+    {
+     "text_ru": "пенал",
+     "text_tt": "пенал",
+     "emoji": "✏️"
+    },
+    {
+     "text_ru": "ручка",
+     "text_tt": "каләм",
+     "emoji": "🖊️"
+    },
+    {
+     "text_ru": "карандаш",
+     "text_tt": "карандаш",
+     "emoji": "✏️"
+    },
+    {
+     "text_ru": "цветные карандаши",
+     "text_tt": "төрле төсле карандашлар",
+     "emoji": "🖍️"
+    },
+    {
+     "text_ru": "линейка",
+     "text_tt": "сызгыч",
+     "emoji": "📏"
+    },
+    {
+     "text_ru": "ластик",
+     "text_tt": "язмакыргыч",
+     "emoji": "🧽"
+    },
+    {
+     "text_ru": "точилка",
+     "text_tt": "карандаш үткенләгеч",
+     "emoji": "🌀"
+    },
+    {
+     "text_ru": "краски",
+     "text_tt": "буяулар",
+     "emoji": "🎨"
+    },
+    {
+     "text_ru": "кисточка",
+     "text_tt": "кылкаләм",
+     "emoji": "🖌️"
+    },
+    {
+     "text_ru": "альбом",
+     "text_tt": "альбом",
+     "emoji": "📒"
+    },
+    {
+     "text_ru": "клей",
+     "text_tt": "клей",
+     "emoji": "🩹"
+    },
+    {
+     "text_ru": "ножницы",
+     "text_tt": "кайчы",
+     "emoji": "✂️"
+    },
+    {
+     "text_ru": "бумага",
+     "text_tt": "кәгазь",
+     "emoji": "📄"
+    },
+    {
+     "text_ru": "пластилин",
+     "text_tt": "пластилин",
+     "emoji": "🟤"
+    },
+    {
+     "text_ru": "оценка",
+     "text_tt": "билге",
+     "emoji": "💯"
+    },
+    {
+     "text_ru": "пятерка",
+     "text_tt": "бишле",
+     "emoji": "5️⃣"
+    },
+    {
+     "text_ru": "четверка",
+     "text_tt": "дүртле",
+     "emoji": "4️⃣"
+    },
+    {
+     "text_ru": "тройка",
+     "text_tt": "өчле",
+     "emoji": "3️⃣"
+    },
+    {
+     "text_ru": "задание",
+     "text_tt": "төпшәрмә",
+     "emoji": "📝"
+    },
+    {
+     "text_ru": "вопрос",
+     "text_tt": "сорау",
+     "emoji": "❓"
+    },
+    {
+     "text_ru": "ответ",
+     "text_tt": "җавап",
+     "emoji": "💡"
+    },
+    {
+     "text_ru": "чтение",
+     "text_tt": "уку",
+     "emoji": "📖"
+    },
+    {
+     "text_ru": "письмо",
+     "text_tt": "язу",
+     "emoji": "✍️"
+    },
+    {
+     "text_ru": "счет",
+     "text_tt": "санау",
+     "emoji": "🧮"
+    },
+    {
+     "text_ru": "звонок",
+     "text_tt": "кыңгырау",
+     "emoji": "🔔"
+    },
+    {
+     "text_ru": "окно",
+     "text_tt": "тәрәзә",
+     "emoji": "🪟"
+    },
+    {
+     "text_ru": "дверь",
+     "text_tt": "ишек",
+     "emoji": "🚪"
+    },
+    {
+     "text_ru": "кабинет",
+     "text_tt": "кабинет",
+     "emoji": "🎒"
+    },
+    {
+     "text_ru": "библиотека",
+     "text_tt": "китапханә",
+     "emoji": "🎒"
+    },
+    {
+     "text_ru": "спортивный зал",
+     "text_tt": "спорт залы",
+     "emoji": "🎒"
+    },
+    {
+     "text_ru": "столовая",
+     "text_tt": "ашханә",
+     "emoji": "🎒"
+    },
+    {
+     "text_ru": "компьютер",
+     "text_tt": "компьютер",
+     "emoji": "🎒"
+    },
+    {
+     "text_ru": "место",
+     "text_tt": "урын",
+     "emoji": "🎒"
+    },
+    {
+     "text_ru": "форма",
+     "text_tt": "форма",
+     "emoji": "🔷"
+    }
+   ]
+  },
+  {
+   "title_ru": "Цифры",
+   "title_tt": "Саннар (1–10)",
+   "icon_emoji": "🔢",
+   "order_index": 3
+  },
+  {
+   "title_ru": "Фрукты/ягоды",
+   "title_tt": "Җимеш-җиләк",
+   "icon_emoji": "🍓",
+   "order_index": 7
+  },
+  {
+   "title_ru": "Овощи",
+   "title_tt": "Яшелчәләр",
+   "icon_emoji": "🥕",
+   "order_index": 8
+  },
+  {
+   "title_ru": "Дни недели",
+   "title_tt": "Атна көннәре",
+   "icon_emoji": "📅",
+   "order_index": 12
+  },
+  {
+   "title_ru": "Числа (10–19)",
+   "title_tt": "Саннар (10–19)",
+   "icon_emoji": "🔟",
+   "order_index": 14
+  },
+  {
+   "title_ru": "Десятки",
+   "title_tt": "Дистәләр",
+   "icon_emoji": "💯",
+   "order_index": 15
+  },
+  {
+   "title_ru": "Местоимения",
+   "title_tt": "Алмашлыклар",
+   "icon_emoji": "🙋",
+   "order_index": 17
+  }
+ ],
+ "skip_existing_global": true
+}
