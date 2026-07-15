@@ -200,16 +200,23 @@ class Pollinations:
         from urllib.parse import quote
         url = f"https://image.pollinations.ai/prompt/{quote(prompt)}"
         last_err = None
-        for attempt in range(3):
+        for attempt in range(5):
             try:
                 r = self.client.get(url, params={"width": 512, "height": 512, "nologo": "true", "seed": attempt * 7 + 1})
+                if r.status_code == 429:
+                    # анонимный тариф: один одновременный запрос на IP — терпеливо ждём
+                    wait = 30 * (attempt + 1)
+                    print(f"    429, жду {wait}с…")
+                    time.sleep(wait)
+                    last_err = RuntimeError("429 Too Many Requests")
+                    continue
                 r.raise_for_status()
                 if not r.headers.get("content-type", "").startswith("image/"):
                     raise RuntimeError(f"не картинка: {r.headers.get('content-type')}")
                 return r.content
             except Exception as e:
                 last_err = e
-                time.sleep(5 * (attempt + 1))
+                time.sleep(10 * (attempt + 1))
         raise RuntimeError(f"Pollinations не ответил: {last_err}")
 
 
@@ -309,10 +316,11 @@ def main() -> None:
             r.raise_for_status()
             ok += 1
             print(f"[{i}/{len(todo)}] ✅ {w['text_ru']} — {w['text_tt']}")
+            fail = 0  # успех сбрасывает счётчик подряд идущих ошибок
         except Exception as e:
             fail += 1
             print(f"[{i}/{len(todo)}] ❌ {w['text_ru']}: {e}")
-            if fail >= 5:
+            if fail >= 8:
                 print("Слишком много ошибок подряд — останавливаюсь.")
                 break
         time.sleep(args.delay)
