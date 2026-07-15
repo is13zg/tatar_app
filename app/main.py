@@ -16,6 +16,7 @@ from .schemas import UserCreate, UserOut, Token, ThemeOut, WordOut, StatsOut, St
 from .security import get_password_hash, verify_password, create_access_token
 from .routers.study import router as study_router
 from .routers.admin import router as admin_router
+from .routers.lessons import router as lessons_router
 from .seed import seed_if_empty
 from .deps import get_current_user
 from .migrate import migrate_sqlite
@@ -151,3 +152,4 @@ async def stats(user: Annotated[User, Depends(get_current_user)], db: Annotated[
 # include routers
 app.include_router(study_router)
 app.include_router(admin_router)
+app.include_router(lessons_router)
