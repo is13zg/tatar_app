@@ -55,7 +55,7 @@
     const key = INSTR_AUDIO[text];
     if (!key || missingInstr.has(key)) return speakRuBrowser(text);
     try { ruAudioEl.pause(); ruAudioEl.currentTime = 0; } catch (e) {}
-    ruAudioEl.src = `/static/voice/ru/${key}.mp3`;
+    ruAudioEl.src = `/static/voice/ru/${key}.wav`;
     ruAudioEl.onerror = () => { missingInstr.add(key); speakRuBrowser(text); };
     ruAudioEl.play().catch(() => { missingInstr.add(key); speakRuBrowser(text); });
   }

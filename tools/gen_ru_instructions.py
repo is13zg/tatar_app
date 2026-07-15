@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 """Озвучка русских инструкций через Сбер SaluteSpeech (SmartSpeech).
 
-Нужен авторизационный ключ (Authorization key из личного кабинета developers.sber.ru,
-проект SaluteSpeech): env SALUTE_AUTH_KEY (base64-строка для Basic).
+Ключи: env SALUTE_AUTH_KEYS — один или несколько авторизационных ключей через запятую
+(ключи ротируются по кругу, при 429/401 — переключение на следующий).
 
 Использование:
-  SALUTE_AUTH_KEY=... python tools/gen_ru_instructions.py            # локально в static/voice/ru/
-  SALUTE_AUTH_KEY=... python tools/gen_ru_instructions.py --out /root/tatar_files/static/voice/ru
+  SALUTE_AUTH_KEYS=key1,key2,key3 python tools/gen_ru_instructions.py --out static/voice/ru
 
-Файлы кладутся в <out>/<key>.mp3 — имена согласованы с INSTR_AUDIO в exercises.js.
+Файлы кладутся в <out>/<key>.wav — имена согласованы с INSTR_AUDIO в exercises.js.
 """
 import argparse
 import os
@@ -38,33 +37,56 @@ INSTRUCTIONS = {
 }
 
 
-def get_token(auth_key: str) -> str:
-    r = httpx.post(
-        OAUTH_URL,
-        headers={
-            "Authorization": f"Basic {auth_key}",
-            "RqUID": str(uuid.uuid4()),
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        data={"scope": "SALUTE_SPEECH_PERS"},
-        verify=False,  # цепочка НУЦ Минцифры может отсутствовать в системе
-        timeout=30,
-    )
-    r.raise_for_status()
-    return r.json()["access_token"]
+class SaluteTTS:
+    """Синтез с ротацией нескольких авторизационных ключей."""
 
+    def __init__(self, auth_keys: list[str]) -> None:
+        self.keys = auth_keys
+        self.tokens: dict[int, str] = {}
+        self.idx = 0
+        # цепочка НУЦ Минцифры обычно не установлена в системе — отключаем проверку
+        self.client = httpx.Client(verify=False, timeout=60)
 
-def synth(token: str, text: str) -> bytes:
-    r = httpx.post(
-        TTS_URL,
-        params={"format": "mp3", "voice": VOICE},
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/text"},
-        content=text.encode("utf-8"),
-        verify=False,
-        timeout=60,
-    )
-    r.raise_for_status()
-    return r.content
+    def _token(self, i: int) -> str:
+        if i not in self.tokens:
+            r = self.client.post(
+                OAUTH_URL,
+                headers={
+                    "Authorization": f"Basic {self.keys[i]}",
+                    "RqUID": str(uuid.uuid4()),
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                data={"scope": "SALUTE_SPEECH_PERS"},
+            )
+            r.raise_for_status()
+            self.tokens[i] = r.json()["access_token"]
+        return self.tokens[i]
+
+    def synth(self, text: str) -> bytes:
+        last_err: Exception | None = None
+        for attempt in range(len(self.keys)):
+            i = self.idx % len(self.keys)
+            self.idx += 1  # round-robin: каждый запрос — следующий ключ
+            try:
+                r = self.client.post(
+                    TTS_URL,
+                    params={"format": "wav16", "voice": VOICE},
+                    headers={
+                        "Authorization": f"Bearer {self._token(i)}",
+                        "Content-Type": "application/text",
+                        "X-Request-ID": str(uuid.uuid4()),
+                    },
+                    content=text.encode("utf-8"),
+                )
+                if r.status_code in (401, 429):
+                    self.tokens.pop(i, None)  # токен протух или лимит — пробуем следующий ключ
+                    last_err = RuntimeError(f"ключ #{i + 1}: HTTP {r.status_code}")
+                    continue
+                r.raise_for_status()
+                return r.content
+            except Exception as e:
+                last_err = e
+        raise RuntimeError(f"Все ключи не сработали: {last_err}")
 
 
 def main() -> None:
@@ -72,21 +94,23 @@ def main() -> None:
     ap.add_argument("--out", default="static/voice/ru")
     args = ap.parse_args()
 
-    key = os.getenv("SALUTE_AUTH_KEY")
-    if not key:
-        sys.exit("Нужен env SALUTE_AUTH_KEY (Authorization key из кабинета SaluteSpeech)")
+    raw = os.getenv("SALUTE_AUTH_KEYS") or os.getenv("SALUTE_AUTH_KEY") or ""
+    keys = [k.strip() for k in raw.split(",") if k.strip()]
+    if not keys:
+        sys.exit("Нужен env SALUTE_AUTH_KEYS (один или несколько ключей через запятую)")
+    print(f"Ключей: {len(keys)}, голос: {VOICE}")
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    token = get_token(key)
+    tts = SaluteTTS(keys)
     for name, text in INSTRUCTIONS.items():
-        target = out / f"{name}.mp3"
+        target = out / f"{name}.wav"
         if target.exists():
             print(f"skip {name} (есть)")
             continue
-        target.write_bytes(synth(token, text))
+        target.write_bytes(tts.synth(text))
         print(f"ok   {name}: «{text}»")
-        time.sleep(0.4)
+        time.sleep(0.3)
     print("Готово:", out)
 
 
