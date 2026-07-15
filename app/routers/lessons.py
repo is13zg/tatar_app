@@ -32,14 +32,50 @@ PHRASE_THEMES = {"Знакомство и общение"}
 
 # Пары тем с пересекающейся семантикой — сортировка по корзинам между ними неоднозначна.
 SORT_INCOMPATIBLE = {
-    frozenset({"Овощи", "Еда и напитки"}),
-    frozenset({"Фрукты/ягоды", "Еда и напитки"}),
+    frozenset({"Овощи", "Продукты и напитки"}),
+    frozenset({"Овощи", "Блюда и вкусы"}),
+    frozenset({"Фрукты/ягоды", "Продукты и напитки"}),
+    frozenset({"Фрукты/ягоды", "Блюда и вкусы"}),
+    frozenset({"Продукты и напитки", "Блюда и вкусы"}),
     frozenset({"Цифры", "Числа (10–19)"}),
     frozenset({"Цифры", "Десятки"}),
     frozenset({"Числа (10–19)", "Десятки"}),
     frozenset({"Человек и тело", "Одежда и обувь"}),
     frozenset({"Время и сезоны", "Дни недели"}),
+    frozenset({"Вещи в доме", "Школа и урок"}),
+    frozenset({"Вещи в доме", "Продукты и напитки"}),
+    frozenset({"Вещи в доме", "Блюда и вкусы"}),
+    frozenset({"Семья и наш дом", "Вещи в доме"}),
+    frozenset({"Школа и урок", "Пенал и рюкзак"}),
+    frozenset({"Действия: движемся", "Действия: говорим и думаем"}),
+    frozenset({"Действия: движемся", "Действия: играем и мастерим"}),
+    frozenset({"Действия: говорим и думаем", "Действия: играем и мастерим"}),
 }
+
+# Минимальные пары, неразличимые для новичка на слух, — не ставить дистракторами друг к другу.
+CONFUSABLE_TT = {
+    frozenset({"тел", "теш"}),
+    frozenset({"иртә", "иртәгә"}),
+    frozenset({"каймак", "коймак"}),
+    frozenset({"укытучы", "укучы"}),
+    frozenset({"каләм", "кылкаләм"}),
+    frozenset({"кабак", "ташкабак"}),
+    frozenset({"басып тору", "торып басу"}),
+    frozenset({"утыру", "тын утыру"}),
+    frozenset({"сау бул", "сау булыгыз"}),
+    frozenset({"кич", "кичә"}),
+    frozenset({"чеби", "чебен"}),
+    frozenset({"чебен", "черки"}),
+    frozenset({"чеби", "черки"}),
+    frozenset({"сары", "сарык"}),
+    frozenset({"миңа биш яшь", "миңа алты яшь"}),
+    frozenset({"миңа алты яшь", "миңа җиде яшь"}),
+    frozenset({"миңа биш яшь", "миңа җиде яшь"}),
+}
+
+
+def confusable(a: str, b: str) -> bool:
+    return frozenset({a.strip().lower(), b.strip().lower()}) in CONFUSABLE_TT
 
 
 def now_utc() -> datetime:
@@ -171,7 +207,10 @@ def ex_memory(words: list[dict]) -> Optional[dict]:
 
 
 def ex_pick_word_audio(target: dict, pool: list[dict]) -> Optional[dict]:
-    distractors = [p for p in pool if p["id"] != target["id"] and p["audio_url"]]
+    distractors = [
+        p for p in pool
+        if p["id"] != target["id"] and p["audio_url"] and not confusable(p["text_tt"], target["text_tt"])
+    ]
     if not target["audio_url"] or len(distractors) < 2:
         return None
     options = random.sample(distractors, 2) + [target]
@@ -336,6 +375,21 @@ async def unit_progress_map(db: AsyncSession, user: User) -> dict[int, UnitProgr
     return {r.theme_id: r for r in rows}
 
 
+async def unlocked_theme_ids(db: AsyncSession, user: User) -> set[int]:
+    """Пройденные юниты + первый непройденный (защита от прыжков по прямым URL)."""
+    units = await get_ordered_units(db)
+    progress = await unit_progress_map(db, user)
+    unlocked: set[int] = set()
+    prev_done = True
+    for t in units:
+        p = progress.get(t.id)
+        completed = bool(p and p.completed_at)
+        if completed or prev_done:
+            unlocked.add(t.id)
+        prev_done = completed
+    return unlocked
+
+
 async def compute_streak(db: AsyncSession, user: User) -> int:
     rows = (await db.execute(
         select(DailyLesson.date).where(DailyLesson.user_id == user.id, DailyLesson.completed_at.is_not(None))
@@ -398,6 +452,8 @@ async def unit_lesson(theme_id: int, lesson_no: int,
     theme = (await db.execute(select(Theme).where(Theme.id == theme_id))).scalar_one_or_none()
     if not theme:
         raise HTTPException(status_code=404, detail="Тема не найдена")
+    if theme_id not in await unlocked_theme_ids(db, user):
+        raise HTTPException(status_code=403, detail="Этот юнит ещё закрыт")
     words = await unit_words(db, theme_id)
     if not words:
         raise HTTPException(status_code=400, detail="В теме нет слов")
@@ -607,6 +663,8 @@ async def lesson_complete(payload: LessonComplete,
         theme = (await db.execute(select(Theme).where(Theme.id == payload.theme_id))).scalar_one_or_none()
         if not theme:
             raise HTTPException(status_code=404, detail="Тема не найдена")
+        if theme.id not in await unlocked_theme_ids(db, user):
+            raise HTTPException(status_code=403, detail="Этот юнит ещё закрыт")
         words = await unit_words(db, theme.id)
         total_lessons = lessons_total_for(len(words))
         p = (await db.execute(select(UnitProgress).where(

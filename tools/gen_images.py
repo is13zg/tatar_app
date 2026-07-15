@@ -135,6 +135,12 @@ EN_GLOSS = {
     "день рождения": "a birthday cake with candles and balloons", "новый год": "a decorated new year tree with presents",
     "каникулы": "happy children on school holidays outdoors",
     "сабантуй": "Sabantuy, Tatar summer festival with belt wrestling and a tall pole",
+    # добавленные слова
+    "младший брат": "a small boy, younger brother",
+    "младшая сестра": "a small girl, younger sister",
+    "лицо": "a child's friendly face",
+    "губы": "smiling lips",
+    "колено": "a child's knee, bandage on knee",
     # школа
     "школа": "a school building", "класс": "a classroom interior", "урок": "a lesson in a classroom",
     "учитель": "a friendly teacher at the blackboard", "ученик": "a schoolkid with a backpack",

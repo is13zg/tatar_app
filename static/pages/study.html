@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Изучение — TT-Learn Kids</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
   <style>
     :root { --maxw: 640px; }
     body { font-family: system-ui, sans-serif; margin: 0; }
@@ -25,11 +26,11 @@
 </head>
 <body>
   <nav>
+    <a href="/static/pages/home.html">🏠 Главная</a>
     <a href="/static/pages/study.html">Изучение</a>
     <a href="/static/pages/repeat.html">Повторение</a>
     <a href="/static/pages/mistakes.html">Работа над ошибками</a>
     <a href="/static/pages/stats.html">Статистика</a>
-    <a href="/static/pages/login.html" id="logout">Выход</a>
   </nav>
 
   <div class="wrap">
@@ -111,7 +112,7 @@
       next();
     }
 
-    document.getElementById('logout').onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
+    const _lg = document.getElementById('logout'); if (_lg) _lg.onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
 
     chooseTheme();
   </script>

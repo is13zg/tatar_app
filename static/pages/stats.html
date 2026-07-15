@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Статистика — TT-Learn Kids</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
   <style>
     body { font-family: system-ui, sans-serif; margin: 0; }
     nav { display: flex; gap: 12px; padding: 12px; border-bottom: 1px solid #eee; }
@@ -22,7 +23,6 @@
     <a href="/static/pages/repeat.html">Повторение</a>
     <a href="/static/pages/mistakes.html">Работа над ошибками</a>
     <a href="/static/pages/stats.html">Статистика</a>
-    <a href="/static/pages/login.html" id="logout">Выход</a>
   </nav>
 
   <div class="wrap">
@@ -41,7 +41,7 @@
   <script>
     function token() { return localStorage.getItem('token'); }
     if (!token()) location.href = '/static/pages/login.html';
-    document.getElementById('logout').onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
+    const _lg = document.getElementById('logout'); if (_lg) _lg.onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
 
     async function api(path) {
       const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token() } });

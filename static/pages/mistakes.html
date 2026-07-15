@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Работа над ошибками — TT-Learn Kids</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
   <style>
     :root { --maxw: 640px; }
     body { font-family: system-ui, sans-serif; margin: 0; }
@@ -24,11 +25,11 @@
 </head>
 <body>
   <nav>
+    <a href="/static/pages/home.html">🏠 Главная</a>
     <a href="/static/pages/study.html">Изучение</a>
     <a href="/static/pages/repeat.html">Повторение</a>
     <a href="/static/pages/mistakes.html">Работа над ошибками</a>
     <a href="/static/pages/stats.html">Статистика</a>
-    <a href="/static/pages/login.html" id="logout">Выход</a>
   </nav>
 
   <div class="wrap">
@@ -109,12 +110,19 @@
         let answered = false;
         item.options.forEach(opt => {
           const tile = document.createElement('button'); tile.className = 'tile';
-          const img = document.createElement('img'); img.className = 'img'; img.src = opt.image_url || '/static/noimg.png';
+          let vis;
+          if (opt.image_url && !opt.image_url.includes('noimg')) {
+            vis = document.createElement('img'); vis.className = 'img'; vis.src = opt.image_url;
+          } else {
+            vis = document.createElement('div'); vis.textContent = opt.emoji || '❓';
+            vis.style.cssText = 'font-size:72px;line-height:1;display:grid;place-items:center;aspect-ratio:1/1;';
+          }
+          const img = vis;
           tile.appendChild(img);
           tile.onclick = async () => {
             if (answered) return; answered = true; grid.style.pointerEvents = 'none';
             const correct = String(opt.id) === String(item.word_id);
-            await api('/modes/answer', { method: 'POST', body: JSON.stringify({ word_id: item.word_id, is_correct: correct }) });
+            try { await api('/modes/answer', { method: 'POST', body: JSON.stringify({ word_id: item.word_id, is_correct: correct }) }); } catch (e) {}
             const fb = document.createElement('div');
             fb.className = correct ? 'good' : 'bad';
             fb.textContent = correct ? 'Дөрес' : 'Хата';
@@ -132,7 +140,7 @@
       next();
     }
 
-    document.getElementById('logout').onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
+    const _lg = document.getElementById('logout'); if (_lg) _lg.onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
 
     startMistakes();
   </script>

@@ -9,8 +9,23 @@ from ..deps import get_current_user
 from ..database import get_db
 from ..models import User, Theme, Word, UserProgress, UserMistake
 from ..schemas import StudyItem, QuizItem, QuizOption, AnswerIn
+from .lessons import word_dto, distinct_visual_sample, PHRASE_THEMES
 
 router = APIRouter(prefix="/modes", tags=["modes"])
+
+
+def _quiz_item(target: Word, pool: list[Word]) -> QuizItem | None:
+    """Вопрос с 3 визуально различимыми дистракторами (эмодзи/картинки не совпадают)."""
+    t = word_dto(target)
+    distractors = distinct_visual_sample(t, [word_dto(w) for w in pool], 3)
+    if not distractors:
+        return None
+    options = distractors + [t]
+    random.shuffle(options)
+    return QuizItem(
+        word_id=t["id"], text_tt=t["text_tt"], audio_url=t["audio_url"],
+        options=[QuizOption(id=o["id"], image_url=o["image_url"], emoji=o["emoji"]) for o in options],
+    )
 
 
 @router.get("/study/{theme_id}", response_model=list[StudyItem])
@@ -24,23 +39,18 @@ async def mode_study(theme_id: int, db: Annotated[AsyncSession, Depends(get_db)]
 
 @router.get("/repeat/{theme_id}", response_model=list[QuizItem])
 async def mode_repeat(theme_id: int, db: Annotated[AsyncSession, Depends(get_db)], user: Annotated[User, Depends(get_current_user)]):
+    theme = (await db.execute(select(Theme).where(Theme.id == theme_id))).scalar_one_or_none()
+    if theme and theme.title_ru in PHRASE_THEMES:
+        raise HTTPException(status_code=400, detail="Эта тема из фраз — она осваивается в уроках на главной")
     words = (await db.execute(select(Word).where(Word.theme_id == theme_id))).scalars().all()
     if len(words) < 4:
         raise HTTPException(status_code=400, detail="Для режима повторения нужно минимум 4 слова в теме")
 
     quiz_items: list[QuizItem] = []
     for w in words:
-        wrong_options = [x for x in words if x.id != w.id]
-        options = random.sample(wrong_options, 3) + [w]
-        random.shuffle(options)
-        quiz_items.append(
-            QuizItem(
-                word_id=w.id,
-                text_tt=w.text_tt,
-                audio_url=w.audio_url or w.tts_url,
-                options=[QuizOption(id=o.id, image_url=o.image_url) for o in options],
-            )
-        )
+        item = _quiz_item(w, words)
+        if item:
+            quiz_items.append(item)
     random.shuffle(quiz_items)
     return quiz_items
 
@@ -87,11 +97,8 @@ async def mode_mistakes(db: Annotated[AsyncSession, Depends(get_db)], user: Anno
             theme_words = (await db.execute(select(Word).where(Word.theme_id == w.theme_id))).scalars().all()
             theme_id_to_words[w.theme_id] = theme_words
         pool = theme_id_to_words[w.theme_id]
-        wrong_options = [x for x in pool if x.id != w.id]
-        if len(wrong_options) < 3:
-            continue
-        options = random.sample(wrong_options, 3) + [w]
-        random.shuffle(options)
-        items.append(QuizItem(word_id=w.id, text_tt=w.text_tt, audio_url=w.audio_url or w.tts_url, options=[QuizOption(id=o.id, image_url=o.image_url) for o in options]))
+        item = _quiz_item(w, pool)
+        if item:
+            items.append(item)
     random.shuffle(items)
     return items

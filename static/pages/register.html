@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Регистрация — TT-Learn Kids</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
   <style>
     :root { --maxw: 420px; }
     body { font-family: system-ui, sans-serif; margin: 0; }
@@ -22,6 +23,7 @@
   <div class="center">
     <div class="card">
       <h1>Регистрация</h1>
+      <form id="regForm">
       <div class="field">
         <label for="reg_username">Логин</label>
         <input id="reg_username" placeholder="Логин" autocomplete="username" />
@@ -34,7 +36,8 @@
         <label for="reg_password_confirm">Подтвердите пароль</label>
         <input id="reg_password_confirm" type="password" placeholder="Подтвердите пароль" autocomplete="new-password" />
       </div>
-      <button id="btnRegister">Зарегистрироваться</button>
+      <button id="btnRegister" type="submit">Зарегистрироваться</button>
+      </form>
       <div class="msg" id="regInfo"></div>
       <div class="link"><a href="/static/pages/login.html">Уже есть аккаунт? Войти</a></div>
     </div>
@@ -49,7 +52,8 @@
       return res.text();
     }
 
-    document.getElementById('btnRegister').onclick = async () => {
+    document.getElementById('regForm').onsubmit = async (e) => {
+      e.preventDefault();
       const username = document.getElementById('reg_username').value.trim();
       const password = document.getElementById('reg_password').value.trim();
       const password_confirm = document.getElementById('reg_password_confirm').value.trim();
@@ -59,11 +63,18 @@
       if (password !== password_confirm) { info.textContent = 'Пароли не совпадают'; return; }
       try {
         await api('/auth/register', { method: 'POST', body: JSON.stringify({ username, password, password_confirm }) });
-        info.style.color = '#16a34a';
-        info.textContent = 'Регистрация успешна. Теперь войдите.';
+        // сразу входим и ведём на детскую главную — без лишнего шага
+        const body = new URLSearchParams({ username, password, grant_type: '' });
+        const res = await fetch('/auth/login', { method: 'POST', body });
+        const data = await res.json();
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('username', username);
+        location.href = '/static/pages/home.html';
       } catch (e) {
         info.style.color = '#ef4444';
-        info.textContent = 'Ошибка регистрации';
+        let msg = 'Ошибка регистрации';
+        try { msg = JSON.parse(e.message).detail || msg; } catch (_) {}
+        info.textContent = typeof msg === 'string' ? msg : 'Проверьте логин и пароль';
       }
     };
   </script>

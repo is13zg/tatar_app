@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Повторение — TT-Learn Kids</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
   <style>
     :root { --maxw: 640px; }
     body { font-family: system-ui, sans-serif; margin: 0; }
@@ -24,11 +25,11 @@
 </head>
 <body>
   <nav>
+    <a href="/static/pages/home.html">🏠 Главная</a>
     <a href="/static/pages/study.html">Изучение</a>
     <a href="/static/pages/repeat.html">Повторение</a>
     <a href="/static/pages/mistakes.html">Работа над ошибками</a>
     <a href="/static/pages/stats.html">Статистика</a>
-    <a href="/static/pages/login.html" id="logout">Выход</a>
   </nav>
 
   <div class="wrap">
@@ -125,12 +126,18 @@
         const grid = document.createElement('div'); grid.className = 'grid';
         item.options.forEach(opt => {
           const tile = document.createElement('button'); tile.className = 'tile';
-          const img = document.createElement('img'); img.className = 'img'; img.src = opt.image_url || '/static/noimg.png';
-          tile.appendChild(img);
+          if (opt.image_url && !opt.image_url.includes('noimg')) {
+            const img = document.createElement('img'); img.className = 'img'; img.src = opt.image_url;
+            tile.appendChild(img);
+          } else {
+            const em = document.createElement('div'); em.textContent = opt.emoji || '❓';
+            em.style.cssText = 'font-size:72px;line-height:1;display:grid;place-items:center;aspect-ratio:1/1;';
+            tile.appendChild(em);
+          }
           tile.onclick = async () => {
             if (locked) return; locked = true;
             const correct = String(opt.id) === String(item.word_id);
-            await api('/modes/answer', { method: 'POST', body: JSON.stringify({ word_id: item.word_id, is_correct: correct }) });
+            try { await api('/modes/answer', { method: 'POST', body: JSON.stringify({ word_id: item.word_id, is_correct: correct }) }); } catch (e) {}
             if (correct) good++; else bad++;
             const fb = document.createElement('div');
             fb.className = correct ? 'good' : 'bad';
@@ -149,7 +156,7 @@
       next();
     }
 
-    document.getElementById('logout').onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
+    const _lg = document.getElementById('logout'); if (_lg) _lg.onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
 
     chooseTheme();
   </script>

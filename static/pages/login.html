@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Вход — TT-Learn Kids</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
   <style>
     :root { --maxw: 420px; }
     body { font-family: system-ui, sans-serif; margin: 0; }
@@ -23,6 +24,7 @@
   <div class="center">
     <div class="card">
       <h1>Вход</h1>
+      <form id="loginForm">
       <div class="field">
         <label for="login_username">Логин</label>
         <input id="login_username" placeholder="Логин" autocomplete="username" />
@@ -31,14 +33,16 @@
         <label for="login_password">Пароль</label>
         <input id="login_password" type="password" placeholder="Пароль" autocomplete="current-password" />
       </div>
-      <button id="btnLogin">Войти</button>
+      <button id="btnLogin" type="submit">Войти</button>
+      </form>
       <div class="msg" id="loginInfo"></div>
       <div class="link"><a href="/static/pages/register.html">Нет аккаунта? Зарегистрироваться</a></div>
     </div>
   </div>
 
   <script>
-    document.getElementById('btnLogin').onclick = async () => {
+    document.getElementById('loginForm').onsubmit = (e) => { e.preventDefault(); doLogin(); };
+    async function doLogin() {
       const username = document.getElementById('login_username').value.trim();
       const password = document.getElementById('login_password').value.trim();
       const info = document.getElementById('loginInfo');
@@ -52,9 +56,9 @@
         localStorage.setItem('username', username);
         window.location.href = '/static/pages/home.html';
       } catch (e) {
-        info.textContent = 'Ошибка входа';
+        info.textContent = 'Неверный логин или пароль';
       }
-    };
+    }
   </script>
 </body>
 </html>

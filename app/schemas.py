@@ -61,6 +61,7 @@ class StudyItem(BaseModel):
 class QuizOption(BaseModel):
     id: int
     image_url: Optional[str] = None
+    emoji: Optional[str] = None
 
 
 class QuizItem(BaseModel):

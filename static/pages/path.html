@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Карта — TT-Learn Kids</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
   <link rel="stylesheet" href="/static/kid.css" />
 </head>
 <body>
@@ -70,7 +71,8 @@
         n.appendChild(mk('div', 'node-icon', u.state === 'locked' ? '🔒' : u.icon_emoji));
         const info = mk('div', 'node-info');
         info.appendChild(mk('div', 'node-title', u.title_ru));
-        info.appendChild(mk('div', 'node-sub', `${u.word_count} слов · урок ${Math.min(u.lessons_done + 1, u.lessons_total)} из ${u.lessons_total}`));
+        const plural = (n, one, few, many) => { const m = n % 100, d = n % 10; return (m > 10 && m < 20) ? many : (d === 1 ? one : (d >= 2 && d <= 4 ? few : many)); };
+        info.appendChild(mk('div', 'node-sub', `${u.word_count} ${plural(u.word_count, 'слово', 'слова', 'слов')} · урок ${Math.min(u.lessons_done + 1, u.lessons_total)} из ${u.lessons_total}`));
         n.appendChild(info);
         n.appendChild(mk('div', 'node-stars', '⭐'.repeat(u.stars)));
         if (u.state !== 'locked') n.onclick = () => openUnit(u);
