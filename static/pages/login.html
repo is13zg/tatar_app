@@ -50,7 +50,7 @@
         const data = await res.json();
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('username', username);
-        window.location.href = '/static/pages/study.html';
+        window.location.href = '/static/pages/home.html';
       } catch (e) {
         info.textContent = 'Ошибка входа';
       }

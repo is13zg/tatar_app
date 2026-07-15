@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Урок — TT-Learn Kids</title>
+  <link rel="stylesheet" href="/static/kid.css" />
+</head>
+<body>
+  <div class="kid-wrap" id="root"></div>
+  <script src="/static/exercises.js"></script>
+  <script>
+    if (!localStorage.getItem('token')) location.href = '/static/pages/login.html';
+    const q = new URLSearchParams(location.search);
+    const opts = q.get('daily')
+      ? { daily: true, backUrl: '/static/pages/home.html' }
+      : { themeId: Number(q.get('theme')), lessonNo: Number(q.get('lesson') || 1), backUrl: '/static/pages/path.html' };
+    Lesson.run(document.getElementById('root'), opts);
+  </script>
+</body>
+</html>

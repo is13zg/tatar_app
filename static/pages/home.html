@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TT-Learn Kids</title>
+  <link rel="stylesheet" href="/static/kid.css" />
+</head>
+<body>
+  <div class="kid-wrap">
+    <div class="kid-top">
+      <div class="kid-chip" id="streak">🔥 0</div>
+      <div class="kid-chip" id="stars">⭐ 0</div>
+      <div class="spacer"></div>
+      <div class="kid-chip" id="who">👤</div>
+    </div>
+
+    <div style="text-align:center;margin:8px 0 16px;">
+      <div style="font-size:64px;">🦊</div>
+      <div class="word-big" id="hello">Сәлам!</div>
+      <div class="word-small">Давай учить татарский!</div>
+    </div>
+
+    <button class="home-daily" id="daily">
+      <span class="fire">🔥</span>
+      <span id="daily-text">Задание дня</span>
+      <span style="margin-left:auto;font-size:30px;">➜</span>
+    </button>
+
+    <div class="home-grid">
+      <button class="home-tile" onclick="location.href='/static/pages/path.html'">
+        <span class="icon">🗺️</span>Карта
+      </button>
+      <button class="home-tile" onclick="location.href='/static/pages/stickers.html'">
+        <span class="icon">🏅</span>Наклейки
+      </button>
+      <button class="home-tile" onclick="location.href='/static/pages/study.html'">
+        <span class="icon">📖</span>Словарик
+      </button>
+      <button class="home-tile" onclick="location.href='/static/pages/stats.html'">
+        <span class="icon">📊</span>Для родителей
+      </button>
+    </div>
+
+    <div class="kid-card" id="continue-card" style="margin-top:14px;display:none;cursor:pointer;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="node-icon" style="width:64px;height:64px;border-radius:50%;background:#fff7ed;display:grid;place-items:center;font-size:34px;" id="cu-icon">📚</div>
+        <div style="flex:1;">
+          <div style="font-weight:800;font-size:18px;" id="cu-title"></div>
+          <div style="color:#6b7280;" id="cu-sub"></div>
+        </div>
+        <div style="font-size:28px;">▶️</div>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:18px;">
+      <a href="/static/pages/login.html" id="logout" style="color:#94a3b8;font-size:14px;">Выйти</a>
+    </div>
+  </div>
+
+  <script src="/static/exercises.js"></script>
+  <script>
+    if (!localStorage.getItem('token')) location.href = '/static/pages/login.html';
+    document.getElementById('logout').onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
+    document.getElementById('daily').onclick = () => location.href = '/static/pages/lesson.html?daily=1';
+
+    (async () => {
+      try {
+        const h = await Lesson.api('/lesson/home');
+        document.getElementById('streak').textContent = '🔥 ' + h.streak;
+        document.getElementById('stars').textContent = '⭐ ' + h.total_stars;
+        document.getElementById('who').textContent = '👤 ' + h.username;
+        if (h.daily_done) {
+          document.getElementById('daily-text').textContent = 'Задание дня выполнено ✅';
+        }
+        if (h.current_unit) {
+          const c = document.getElementById('continue-card');
+          c.style.display = 'block';
+          document.getElementById('cu-icon').textContent = h.current_unit.icon_emoji;
+          document.getElementById('cu-title').textContent = h.current_unit.title_ru;
+          document.getElementById('cu-sub').textContent = `Урок ${h.current_unit.next_lesson} из ${h.current_unit.lessons_total}`;
+          c.onclick = () => location.href = `/static/pages/lesson.html?theme=${h.current_unit.theme_id}&lesson=${h.current_unit.next_lesson}`;
+        }
+      } catch (e) {}
+    })();
+  </script>
+</body>
+</html>

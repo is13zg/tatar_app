@@ -1,0 +1,525 @@
+/* Раннер урока и упражнения TT-Learn Kids.
+   Использование (lesson.html): Lesson.run(container, {daily:true} | {themeId, lessonNo}) */
+(function () {
+  'use strict';
+
+  // ---------- общие утилиты ----------
+  function token() { return localStorage.getItem('token'); }
+  function authHeaders() { const t = token(); return t ? { 'Authorization': 'Bearer ' + t } : {}; }
+
+  async function api(path, opts = {}) {
+    const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(opts.headers || {}) } });
+    if (res.status === 401) { location.href = '/static/pages/login.html'; throw new Error('401'); }
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  const audioEl = new Audio();
+  function playAudio(url) {
+    return new Promise(resolve => {
+      if (!url) return resolve();
+      try { audioEl.pause(); audioEl.currentTime = 0; } catch (e) {}
+      audioEl.src = url;
+      audioEl.onended = () => resolve();
+      audioEl.onerror = () => resolve();
+      audioEl.play().catch(() => resolve());
+    });
+  }
+
+  function speakRu(text) {
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ru-RU'; u.rate = 0.95;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
+  const sfxGood = new Audio('/static/sounds/success.mp3');
+  const sfxBad = new Audio('/static/sounds/error.mp3');
+  sfxGood.volume = 0.45; sfxBad.volume = 0.45;
+  function playFx(ok) {
+    const el = ok ? sfxGood : sfxBad;
+    try { el.pause(); el.currentTime = 0; } catch (e) {}
+    return new Promise(r => { el.onended = () => r(); el.play().catch(() => r()); setTimeout(r, 1500); });
+  }
+
+  function el(tag, cls, html) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html !== undefined) n.innerHTML = html;
+    return n;
+  }
+
+  function visual(obj, big) {
+    // картинка слова или крупный эмодзи
+    const hasImg = obj.image_url && !obj.image_url.includes('noimg');
+    if (hasImg) {
+      const img = document.createElement('img');
+      img.src = obj.image_url; img.alt = '';
+      return img;
+    }
+    return el('div', 'emoji', obj.emoji || '❓');
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function confetti() {
+    const box = el('div', 'confetti');
+    const colors = ['#f97316', '#8b5cf6', '#22c55e', '#eab308', '#3b82f6', '#ec4899'];
+    for (let i = 0; i < 80; i++) {
+      const p = document.createElement('i');
+      p.style.left = Math.random() * 100 + 'vw';
+      p.style.background = colors[i % colors.length];
+      p.style.animationDuration = (2.2 + Math.random() * 2) + 's';
+      p.style.animationDelay = (Math.random() * 0.8) + 's';
+      p.style.borderRadius = Math.random() > 0.5 ? '50%' : '3px';
+      box.appendChild(p);
+    }
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 5200);
+  }
+
+  let banner;
+  function feedback(ok, text) {
+    if (!banner) { banner = el('div', 'feedback-banner'); document.body.appendChild(banner); }
+    banner.className = 'feedback-banner ' + (ok ? 'good' : 'bad');
+    banner.textContent = text || (ok ? 'Дөрес! 🎉' : 'Хата 😅');
+    requestAnimationFrame(() => banner.classList.add('show'));
+    setTimeout(() => banner.classList.remove('show'), 1300);
+  }
+
+  function reportAnswer(wordId, ok, type) {
+    api('/lesson/answer', { method: 'POST', body: JSON.stringify({ word_id: wordId, is_correct: ok, exercise_type: type }) }).catch(() => {});
+  }
+
+  // ---------- упражнения ----------
+  // каждый рендерер: (item, screen, done) => void; done({scored, ok})
+
+  function rCard(item, screen, done) {
+    const w = item.word;
+    screen.appendChild(el('div', 'instr', '🆕 Новое слово'));
+    const vis = el('div', 'big-visual'); vis.appendChild(visual(w)); screen.appendChild(vis);
+    screen.appendChild(el('div', 'word-big', w.text_tt));
+    screen.appendChild(el('div', 'word-small', w.text_ru));
+    const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;align-items:center;margin-top:14px;';
+    const play = el('button', 'play-btn', '🔊');
+    play.onclick = () => playAudio(w.audio_url);
+    const next = el('button', 'kid-btn', 'Дальше ➜');
+    next.onclick = () => done({ scored: false });
+    row.appendChild(play); row.appendChild(next); screen.appendChild(row);
+    playAudio(w.audio_url);
+  }
+
+  function rPickImage(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '👂 Послушай и найди картинку'));
+    const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:14px;';
+    const play = el('button', 'play-btn small', '🔊');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    head.appendChild(el('div', 'word-big', item.text_tt));
+    screen.appendChild(head);
+    const grid = el('div', 'tile-grid'); screen.appendChild(grid);
+    let locked = false;
+    item.options.forEach(opt => {
+      const t = el('button', 'tile');
+      t.appendChild(visual(opt));
+      t.onclick = async () => {
+        if (locked) return; locked = true;
+        const ok = opt.id === item.word_id;
+        reportAnswer(item.word_id, ok, 'pick_image');
+        t.classList.add(ok ? 'good' : 'bad');
+        if (!ok) {
+          [...grid.children].forEach(c => { if (c._id === item.word_id) c.classList.add('good'); else if (c !== t) c.classList.add('dim'); });
+        }
+        feedback(ok); await playFx(ok); await sleep(700);
+        done({ scored: true, ok });
+      };
+      t._id = opt.id;
+      grid.appendChild(t);
+    });
+    playAudio(item.audio_url);
+  }
+
+  function rYesNo(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🤔 Это правильная картинка?'));
+    const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:8px;';
+    const play = el('button', 'play-btn small', '🔊');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    head.appendChild(el('div', 'word-big', item.text_tt));
+    screen.appendChild(head);
+    const vis = el('div', 'big-visual'); vis.appendChild(visual(item.shown)); screen.appendChild(vis);
+    const row = el('div', 'yn-row');
+    let locked = false;
+    const answer = async (saidYes) => {
+      if (locked) return; locked = true;
+      const ok = saidYes === item.is_match;
+      reportAnswer(item.word_id, ok, 'yes_no');
+      feedback(ok); await playFx(ok); await sleep(500);
+      done({ scored: true, ok });
+    };
+    const yes = el('button', 'kid-btn yn-yes', '👍');
+    const no = el('button', 'kid-btn yn-no', '👎');
+    yes.onclick = () => answer(true);
+    no.onclick = () => answer(false);
+    row.appendChild(yes); row.appendChild(no); screen.appendChild(row);
+    playAudio(item.audio_url);
+  }
+
+  function rMemory(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🃏 Найди пары: картинка и звук'));
+    const grid = el('div', 'mem-grid'); screen.appendChild(grid);
+    const cards = [];
+    item.pairs.forEach(p => {
+      cards.push({ pair: p, kind: 'img' });
+      cards.push({ pair: p, kind: 'audio' });
+    });
+    cards.sort(() => Math.random() - 0.5);
+    let open = null, matched = 0, wrong = 0, locked = false;
+    cards.forEach(c => {
+      const b = el('button', 'mem-card', '❓');
+      b.onclick = async () => {
+        if (locked || b.classList.contains('open') || b.classList.contains('matched')) return;
+        b.classList.add('open'); b.innerHTML = '';
+        if (c.kind === 'img') b.appendChild(visual(c.pair));
+        else { b.textContent = '🔊'; playAudio(c.pair.audio_url); }
+        if (!open) { open = { b, c }; return; }
+        locked = true;
+        const isMatch = open.c.pair.word_id === c.pair.word_id && open.c.kind !== c.kind;
+        if (isMatch) {
+          await sleep(500);
+          b.classList.add('matched'); open.b.classList.add('matched');
+          matched++;
+          reportAnswer(c.pair.word_id, true, 'memory');
+          playFx(true);
+        } else {
+          wrong++;
+          await sleep(900);
+          [b, open.b].forEach(x => { x.classList.remove('open'); x.textContent = '❓'; });
+        }
+        open = null; locked = false;
+        if (matched === item.pairs.length) {
+          const ok = wrong <= 2;
+          feedback(ok, ok ? 'Дөрес! 🎉' : 'Молодец, но потренируйся ещё!');
+          await sleep(900);
+          done({ scored: true, ok });
+        }
+      };
+      grid.appendChild(b);
+    });
+    speakRu('Найди пары');
+  }
+
+  function rSortBaskets(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🧺 Разложи по корзинкам: нажми картинку, потом корзинку'));
+    const basketsRow = el('div', 'baskets'); screen.appendChild(basketsRow);
+    const itemsRow = el('div', 'sort-items'); screen.appendChild(itemsRow);
+    let selected = null, wrong = 0, placed = 0, lockedAll = false;
+    const baskets = {};
+    item.baskets.forEach(b => {
+      const bx = el('div', 'basket');
+      bx.appendChild(el('span', 'icon', b.icon_emoji));
+      bx.appendChild(el('div', '', b.title_ru));
+      bx.appendChild(el('div', 'caught', ''));
+      bx.onclick = async () => {
+        if (!selected || lockedAll) return;
+        const it = selected; selected = null;
+        it.node.classList.remove('selected');
+        const ok = it.data.basket === b.id;
+        if (ok) {
+          placed++;
+          bx.querySelector('.caught').textContent += it.data.emoji || '🖼️';
+          it.node.remove();
+          reportAnswer(it.data.word_id, true, 'sort_baskets');
+          playAudio(it.data.audio_url);
+        } else {
+          wrong++;
+          reportAnswer(it.data.word_id, false, 'sort_baskets');
+          it.node.querySelector('.tile').classList.add('bad');
+          playFx(false);
+          setTimeout(() => it.node.querySelector('.tile').classList.remove('bad'), 500);
+        }
+        Object.values(baskets).forEach(x => x.classList.remove('target'));
+        if (placed === item.items.length) {
+          lockedAll = true;
+          const allOk = wrong === 0;
+          feedback(allOk, allOk ? 'Дөрес! 🎉' : 'Готово!');
+          await playFx(allOk); await sleep(600);
+          done({ scored: true, ok: allOk });
+        }
+      };
+      baskets[b.id] = bx;
+      basketsRow.appendChild(bx);
+    });
+    item.items.forEach(d => {
+      const wrap = el('div', 'sort-item');
+      const t = el('button', 'tile');
+      t.appendChild(visual(d));
+      t.onclick = () => {
+        if (lockedAll) return;
+        if (selected) selected.node.classList.remove('selected');
+        selected = { node: wrap, data: d };
+        wrap.classList.add('selected');
+        playAudio(d.audio_url);
+        Object.values(baskets).forEach(x => x.classList.add('target'));
+      };
+      wrap.appendChild(t);
+      itemsRow.appendChild(wrap);
+    });
+    speakRu('Разложи по корзинкам');
+  }
+
+  function rPickWordAudio(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🔊 Как звучит это слово? Слушай и выбери'));
+    const vis = el('div', 'big-visual'); vis.appendChild(visual(item.shown)); screen.appendChild(vis);
+    screen.appendChild(el('div', 'word-small', item.shown.text_ru || ''));
+    const row = el('div', ''); row.style.cssText = 'display:flex;gap:16px;justify-content:center;margin-top:14px;';
+    const colors = ['#8b5cf6', '#f97316', '#0ea5e9'];
+    let locked = false, played = false;
+    const buttons = item.options.map((o, i) => {
+      const b = el('button', 'play-btn', '🔊');
+      b.style.background = colors[i % colors.length];
+      b.onclick = async () => {
+        if (locked) return;
+        if (!played) { return; } // сначала прослушивание
+        locked = true;
+        const ok = o.id === item.word_id;
+        reportAnswer(item.word_id, ok, 'pick_word_audio');
+        feedback(ok); await playFx(ok); await sleep(500);
+        done({ scored: true, ok });
+      };
+      row.appendChild(b);
+      return { b, o };
+    });
+    screen.appendChild(row);
+    // автопроигрывание вариантов по очереди с подсветкой, затем можно выбирать
+    (async () => {
+      await sleep(400);
+      for (const { b, o } of buttons) {
+        b.style.transform = 'scale(1.18)';
+        await playAudio(o.audio_url);
+        b.style.transform = '';
+        await sleep(250);
+      }
+      played = true;
+      speakRu('Выбери кнопку со словом с картинки');
+      // после прослушивания повторный тап играет и отвечает
+      buttons.forEach(({ b, o }) => {
+        b.onclick = async () => {
+          if (locked) return; locked = true;
+          await playAudio(o.audio_url);
+          const ok = o.id === item.word_id;
+          reportAnswer(item.word_id, ok, 'pick_word_audio');
+          feedback(ok); await playFx(ok); await sleep(400);
+          done({ scored: true, ok });
+        };
+      });
+    })();
+  }
+
+  function rBuildWord(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🧩 Собери слово из букв'));
+    const vis = el('div', 'big-visual'); vis.appendChild(visual(item)); screen.appendChild(vis);
+    const play = el('button', 'play-btn small', '🔊');
+    play.style.margin = '0 auto'; play.style.display = 'block';
+    play.onclick = () => playAudio(item.audio_url);
+    screen.appendChild(play);
+    const slots = el('div', 'slots'); screen.appendChild(slots);
+    const letters = el('div', 'letters'); screen.appendChild(letters);
+    const word = item.text_tt;
+    let pos = 0, wrong = 0;
+    const slotEls = [...word].map(() => { const s = el('div', 'slot', ''); slots.appendChild(s); return s; });
+    [...item.letters].forEach(ch => {
+      const b = el('button', 'letter-tile', ch);
+      b.onclick = async () => {
+        if (ch === word[pos]) {
+          slotEls[pos].textContent = ch; slotEls[pos].classList.add('filled');
+          b.disabled = true; pos++;
+          if (pos === word.length) {
+            const ok = wrong <= 1;
+            reportAnswer(item.word_id, ok, 'build_word');
+            await playAudio(item.audio_url);
+            feedback(ok); await playFx(ok); await sleep(500);
+            done({ scored: true, ok });
+          }
+        } else {
+          wrong++;
+          b.classList.add('bad'); playFx(false);
+          setTimeout(() => b.classList.remove('bad'), 450);
+        }
+      };
+      letters.appendChild(b);
+    });
+    playAudio(item.audio_url);
+  }
+
+  function rRepeatAfter(item, screen, done) {
+    const w = item.word;
+    screen.appendChild(el('div', 'instr', '🎤 Повтори за диктором!'));
+    const vis = el('div', 'big-visual'); vis.appendChild(visual(w)); screen.appendChild(vis);
+    screen.appendChild(el('div', 'word-big', w.text_tt));
+    const row = el('div', ''); row.style.cssText = 'display:flex;gap:16px;align-items:center;justify-content:center;margin-top:14px;';
+    const play = el('button', 'play-btn', '🔊');
+    play.onclick = () => playAudio(w.audio_url);
+    row.appendChild(play);
+
+    const mic = el('button', 'mic-btn', '🎤');
+    row.appendChild(mic);
+    screen.appendChild(row);
+    const hint = el('div', 'word-small', 'Нажми 🎤 и повтори слово');
+    hint.style.marginTop = '10px';
+    screen.appendChild(hint);
+
+    let recorder = null, chunks = [], myUrl = null;
+    mic.onclick = async () => {
+      if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder = new MediaRecorder(stream);
+        chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+          stream.getTracks().forEach(t => t.stop());
+          mic.classList.remove('rec'); mic.textContent = '🎤';
+          myUrl = URL.createObjectURL(new Blob(chunks));
+          hint.textContent = 'Послушай себя и диктора — похоже?';
+          showCompare();
+        };
+        recorder.start();
+        mic.classList.add('rec'); mic.textContent = '⏹';
+        hint.textContent = 'Говори! Потом нажми ⏹';
+        setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 5000);
+      } catch (e) {
+        hint.textContent = 'Микрофон недоступен — просто повтори вслух!';
+        showNext();
+      }
+    };
+
+    let compareShown = false;
+    function showCompare() {
+      if (compareShown) return; compareShown = true;
+      const cmp = el('div', '');
+      cmp.style.cssText = 'display:flex;gap:12px;justify-content:center;margin-top:14px;';
+      const me = el('button', 'kid-btn ghost', '▶️ Я');
+      me.onclick = () => { const a = new Audio(myUrl); a.play(); };
+      const dictor = el('button', 'kid-btn ghost', '▶️ Диктор');
+      dictor.onclick = () => playAudio(w.audio_url);
+      cmp.appendChild(me); cmp.appendChild(dictor);
+      screen.appendChild(cmp);
+      showNext();
+    }
+    function showNext() {
+      const next = el('button', 'kid-btn', 'Получилось! ➜');
+      next.style.marginTop = '14px';
+      next.onclick = () => { reportAnswer(w.id, true, 'repeat_after'); done({ scored: false }); };
+      screen.appendChild(next);
+    }
+    playAudio(w.audio_url);
+  }
+
+  const RENDERERS = {
+    card: rCard,
+    pick_image: rPickImage,
+    yes_no: rYesNo,
+    memory: rMemory,
+    sort_baskets: rSortBaskets,
+    pick_word_audio: rPickWordAudio,
+    build_word: rBuildWord,
+    repeat_after: rRepeatAfter,
+  };
+
+  // ---------- раннер ----------
+  async function run(container, opts) {
+    container.innerHTML = '';
+    const top = el('div', 'kid-top');
+    const back = el('button', 'kid-back', '←');
+    back.onclick = () => location.href = opts.backUrl || '/static/pages/home.html';
+    const dots = el('div', 'dots');
+    top.appendChild(back); top.appendChild(dots);
+    const card = el('div', 'kid-card');
+    const screen = el('div', '');
+    screen.style.cssText = 'display:grid;justify-items:center;gap:4px;';
+    card.appendChild(screen);
+    container.appendChild(top); container.appendChild(card);
+
+    let data;
+    try {
+      data = opts.daily
+        ? await api('/lesson/daily')
+        : await api(`/lesson/unit/${opts.themeId}/${opts.lessonNo}`);
+    } catch (e) {
+      screen.innerHTML = '<div class="word-big">Ой! Не получилось загрузить урок 😔</div>';
+      return;
+    }
+
+    if (data.completed) {
+      screen.appendChild(el('div', 'sticker-award', '✅'));
+      screen.appendChild(el('div', 'word-big', 'Задание на сегодня выполнено!'));
+      screen.appendChild(el('div', 'stars-row', '⭐'.repeat(data.stars || 1)));
+      const home = el('button', 'kid-btn', 'На главную');
+      home.onclick = () => location.href = '/static/pages/home.html';
+      screen.appendChild(home);
+      return;
+    }
+
+    const items = data.items || [];
+    items.forEach(() => dots.appendChild(document.createElement('i')));
+    let idx = 0, correct = 0, total = 0;
+
+    function renderCurrent() {
+      [...dots.children].forEach((d, i) => {
+        d.className = i < idx ? 'done' : (i === idx ? 'now' : '');
+      });
+      screen.innerHTML = '';
+      if (idx >= items.length) return finish();
+      const item = items[idx];
+      const renderer = RENDERERS[item.type];
+      if (!renderer) { idx++; return renderCurrent(); }
+      renderer(item, screen, (res) => {
+        if (res && res.scored) { total++; if (res.ok) correct++; }
+        idx++;
+        renderCurrent();
+      });
+    }
+
+    async function finish() {
+      let result = { stars: 1, sticker: null, streak: 0 };
+      try {
+        result = await api('/lesson/complete', {
+          method: 'POST',
+          body: JSON.stringify({
+            kind: opts.daily ? 'daily' : 'unit',
+            theme_id: opts.themeId || null,
+            lesson_no: opts.lessonNo || null,
+            correct, total,
+          }),
+        });
+      } catch (e) {}
+      screen.innerHTML = '';
+      confetti(); playFx(true);
+      speakRu(result.stars >= 3 ? 'Молодец! Отлично!' : 'Молодец!');
+      screen.appendChild(el('div', 'word-big', 'Афәрин! 🎉'));
+      screen.appendChild(el('div', 'stars-row', '⭐'.repeat(result.stars || 1) + '☆'.repeat(3 - (result.stars || 1))));
+      if (total > 0) screen.appendChild(el('div', 'word-small', `Правильно: ${correct} из ${total}`));
+      if (result.sticker) {
+        screen.appendChild(el('div', 'word-small', 'Новая наклейка!'));
+        screen.appendChild(el('div', 'sticker-award', result.sticker));
+      }
+      if (opts.daily && result.streak) {
+        screen.appendChild(el('div', 'word-small', `🔥 Серия: ${result.streak} дн.`));
+      }
+      const row = el('div', '');
+      row.style.cssText = 'display:grid;gap:10px;width:100%;margin-top:16px;';
+      const map = el('button', 'kid-btn secondary', '🗺️ На карту');
+      map.onclick = () => location.href = '/static/pages/path.html';
+      const home = el('button', 'kid-btn', '🏠 На главную');
+      home.onclick = () => location.href = '/static/pages/home.html';
+      row.appendChild(map); row.appendChild(home);
+      screen.appendChild(row);
+    }
+
+    renderCurrent();
+  }
+
+  window.Lesson = { run, api, playAudio, speakRu, visual, el, confetti };
+})();

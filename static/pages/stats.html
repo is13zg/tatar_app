@@ -17,6 +17,7 @@
 </head>
 <body>
   <nav>
+    <a href="/static/pages/home.html">🏠 Главная</a>
     <a href="/static/pages/study.html">Изучение</a>
     <a href="/static/pages/repeat.html">Повторение</a>
     <a href="/static/pages/mistakes.html">Работа над ошибками</a>
@@ -25,6 +26,7 @@
   </nav>
 
   <div class="wrap">
+    <div class="card" id="kid-progress"></div>
     <div class="card" id="overall"></div>
     <div class="card">
       <h3>По темам</h3>
@@ -47,6 +49,19 @@
     }
 
     (async () => {
+      try {
+        const h = await api('/lesson/home');
+        const p = await api('/lesson/path');
+        const done = p.units.filter(u => u.state === 'done').length;
+        document.getElementById('kid-progress').innerHTML = `
+          <h3 style="margin-top:0;">Путь ребёнка</h3>
+          <div>🔥 <b>Серия дней:</b> ${h.streak}</div>
+          <div>⭐ <b>Звёзды:</b> ${h.total_stars}</div>
+          <div>🏅 <b>Наклейки:</b> ${h.stickers.join(' ') || 'пока нет'}</div>
+          <div>📚 <b>Пройдено юнитов:</b> ${done} из ${p.units.length}</div>
+          <div>🧠 <b>Слов в памяти (повторено ≥2 раз):</b> ${h.learned_words}</div>
+          <div>${h.daily_done ? '✅ Задание дня выполнено' : '⬜ Задание дня ещё не сделано'}</div>`;
+      } catch (e) {}
       const s = await api('/stats');
       const overall = document.getElementById('overall');
       overall.innerHTML = `

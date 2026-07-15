@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Карта — TT-Learn Kids</title>
+  <link rel="stylesheet" href="/static/kid.css" />
+</head>
+<body>
+  <div class="kid-wrap">
+    <div class="kid-top">
+      <button class="kid-back" onclick="location.href='/static/pages/home.html'">←</button>
+      <div class="kid-chip">🗺️ Карта</div>
+      <div class="spacer"></div>
+      <div class="kid-chip" id="streak">🔥 0</div>
+    </div>
+    <div id="list"></div>
+  </div>
+
+  <div id="unit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;place-items:center;padding:20px;">
+    <div class="kid-card" style="max-width:420px;width:100%;">
+      <div style="text-align:center;">
+        <div style="font-size:56px;" id="m-icon"></div>
+        <div class="word-big" id="m-title"></div>
+        <div class="word-small" id="m-tt"></div>
+      </div>
+      <div id="m-lessons" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px;"></div>
+      <button class="kid-btn ghost" style="margin-top:14px;" onclick="document.getElementById('unit-modal').style.display='none'">Закрыть</button>
+    </div>
+  </div>
+
+  <script src="/static/exercises.js"></script>
+  <script>
+    if (!localStorage.getItem('token')) location.href = '/static/pages/login.html';
+
+    function openUnit(u) {
+      const m = document.getElementById('unit-modal');
+      document.getElementById('m-icon').textContent = u.icon_emoji;
+      document.getElementById('m-title').textContent = u.title_ru;
+      document.getElementById('m-tt').textContent = u.title_tt || '';
+      const box = document.getElementById('m-lessons');
+      box.innerHTML = '';
+      for (let i = 1; i <= u.lessons_total; i++) {
+        const isBoss = i === u.lessons_total;
+        const done = i <= u.lessons_done;
+        const available = i <= u.lessons_done + 1;
+        const b = document.createElement('button');
+        b.className = 'kid-btn' + (isBoss ? '' : ' secondary');
+        b.style.cssText = 'font-size:20px;padding:14px 6px;' + (available ? '' : 'filter:grayscale(1);opacity:.5;');
+        b.textContent = isBoss ? '👑' : (done ? '✅ ' + i : i);
+        if (available) b.onclick = () => location.href = `/static/pages/lesson.html?theme=${u.theme_id}&lesson=${i}`;
+        box.appendChild(b);
+      }
+      m.style.display = 'grid';
+    }
+
+    (async () => {
+      const d = await Lesson.api('/lesson/path');
+      document.getElementById('streak').textContent = '🔥 ' + d.streak;
+      const list = document.getElementById('list');
+      d.units.forEach(u => {
+        const n = document.createElement('div');
+        n.className = 'path-node ' + u.state;
+        n.innerHTML = `
+          <div class="node-icon">${u.state === 'locked' ? '🔒' : u.icon_emoji}</div>
+          <div class="node-info">
+            <div class="node-title">${u.title_ru}</div>
+            <div class="node-sub">${u.word_count} слов · урок ${Math.min(u.lessons_done + 1, u.lessons_total)} из ${u.lessons_total}</div>
+          </div>
+          <div class="node-stars">${'⭐'.repeat(u.stars)}${u.state === 'done' ? '' : ''}</div>`;
+        if (u.state !== 'locked') n.onclick = () => openUnit(u);
+        list.appendChild(n);
+      });
+    })();
+  </script>
+</body>
+</html>

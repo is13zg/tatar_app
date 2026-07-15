@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Наклейки — TT-Learn Kids</title>
+  <link rel="stylesheet" href="/static/kid.css" />
+</head>
+<body>
+  <div class="kid-wrap">
+    <div class="kid-top">
+      <button class="kid-back" onclick="location.href='/static/pages/home.html'">←</button>
+      <div class="kid-chip">🏅 Мои наклейки</div>
+    </div>
+    <div class="kid-card">
+      <div id="grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;"></div>
+      <div id="empty" class="word-small" style="display:none;padding:20px;">
+        Пока пусто… Проходи уроки и получай наклейки! 🎁
+      </div>
+    </div>
+  </div>
+  <script src="/static/exercises.js"></script>
+  <script>
+    if (!localStorage.getItem('token')) location.href = '/static/pages/login.html';
+    (async () => {
+      const d = await Lesson.api('/lesson/path');
+      const grid = document.getElementById('grid');
+      if (!d.stickers.length) document.getElementById('empty').style.display = 'block';
+      d.stickers.forEach(s => {
+        const c = document.createElement('div');
+        c.style.cssText = 'aspect-ratio:1/1;display:grid;place-items:center;font-size:44px;background:#fff7ed;border-radius:18px;box-shadow:var(--shadow);';
+        c.textContent = s;
+        grid.appendChild(c);
+      });
+    })();
+  </script>
+</body>
+</html>
