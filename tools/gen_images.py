@@ -319,6 +319,10 @@ def main() -> None:
             png = provider.generate(prompt)
             files = {"file": (f"word_{w['id']}.png", io.BytesIO(png), "image/png")}
             r = httpx.post(f"{args.app}/admin/word_image/{w['id']}", headers=headers, files=files, timeout=60)
+            if r.status_code == 401:  # JWT живёт 60 минут — перелогиниваемся
+                headers = login(args.app, args.user, args.password)
+                files = {"file": (f"word_{w['id']}.png", io.BytesIO(png), "image/png")}
+                r = httpx.post(f"{args.app}/admin/word_image/{w['id']}", headers=headers, files=files, timeout=60)
             r.raise_for_status()
             ok += 1
             print(f"[{i}/{len(todo)}] ✅ {w['text_ru']} — {w['text_tt']}")
