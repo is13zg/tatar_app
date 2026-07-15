@@ -91,6 +91,21 @@ class UnitProgress(Base):
     )
 
 
+class LessonResult(Base):
+    __tablename__ = "lesson_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    theme_id: Mapped[int] = mapped_column(ForeignKey("themes.id", ondelete="CASCADE"))
+    lesson_no: Mapped[int] = mapped_column(Integer)
+    stars: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "theme_id", "lesson_no", name="uq_user_lesson_result"),
+    )
+
+
 class DailyLesson(Base):
     __tablename__ = "daily_lessons"
 

@@ -48,7 +48,12 @@
         b.className = 'kid-btn' + (isBoss ? '' : ' secondary');
         b.style.cssText = 'font-size:20px;padding:14px 6px;' + (available ? '' : 'filter:grayscale(1);opacity:.5;');
         b.textContent = isBoss ? '👑' : (done ? '✅ ' + i : i);
-        if (available) b.onclick = () => location.href = `/static/pages/lesson.html?theme=${u.theme_id}&lesson=${i}`;
+        if (available) {
+          b.onclick = () => location.href = `/static/pages/lesson.html?theme=${u.theme_id}&lesson=${i}`;
+        } else {
+          b.disabled = true;
+          b.setAttribute('aria-disabled', 'true');
+        }
         box.appendChild(b);
       }
       m.style.display = 'grid';
@@ -61,13 +66,13 @@
       d.units.forEach(u => {
         const n = document.createElement('div');
         n.className = 'path-node ' + u.state;
-        n.innerHTML = `
-          <div class="node-icon">${u.state === 'locked' ? '🔒' : u.icon_emoji}</div>
-          <div class="node-info">
-            <div class="node-title">${u.title_ru}</div>
-            <div class="node-sub">${u.word_count} слов · урок ${Math.min(u.lessons_done + 1, u.lessons_total)} из ${u.lessons_total}</div>
-          </div>
-          <div class="node-stars">${'⭐'.repeat(u.stars)}${u.state === 'done' ? '' : ''}</div>`;
+        const mk = (tag, cls, text) => { const x = document.createElement(tag); x.className = cls; if (text !== undefined) x.textContent = text; return x; };
+        n.appendChild(mk('div', 'node-icon', u.state === 'locked' ? '🔒' : u.icon_emoji));
+        const info = mk('div', 'node-info');
+        info.appendChild(mk('div', 'node-title', u.title_ru));
+        info.appendChild(mk('div', 'node-sub', `${u.word_count} слов · урок ${Math.min(u.lessons_done + 1, u.lessons_total)} из ${u.lessons_total}`));
+        n.appendChild(info);
+        n.appendChild(mk('div', 'node-stars', '⭐'.repeat(u.stars)));
         if (u.state !== 'locked') n.onclick = () => openUnit(u);
         list.appendChild(n);
       });

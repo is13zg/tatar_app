@@ -13,8 +13,9 @@ from ..deps import get_current_user
 from ..database import get_db
 from ..models import (
     User, Theme, Word, UserProgress, UserMistake,
-    UnitProgress, DailyLesson, UserSticker,
+    UnitProgress, DailyLesson, UserSticker, LessonResult,
 )
+from sqlalchemy import func
 
 router = APIRouter(prefix="/lesson", tags=["lessons"])
 
@@ -56,17 +57,48 @@ async def unit_words(db: AsyncSession, theme_id: int) -> list[Word]:
     return (await db.execute(select(Word).where(Word.theme_id == theme_id).order_by(Word.id))).scalars().all()
 
 
+async def word_counts_by_theme(db: AsyncSession) -> dict[int, int]:
+    rows = (await db.execute(select(Word.theme_id, func.count(Word.id)).group_by(Word.theme_id))).all()
+    return {theme_id: cnt for theme_id, cnt in rows}
+
+
 # ---------- генераторы упражнений ----------
+
+def visual_key(w: dict) -> str:
+    """Как слово выглядит для ребёнка: картинка или эмодзи-заглушка.
+    Упражнения с выбором по картинке обязаны различать варианты именно по этому ключу."""
+    img = w.get("image_url")
+    if img and "noimg" not in img:
+        return f"img:{img}"
+    return f"emoji:{w.get('emoji') or '?'}"
+
+
+def distinct_visual_sample(target: dict, pool: list[dict], n: int) -> Optional[list[dict]]:
+    """n дистракторов, визуально отличных от цели и друг от друга."""
+    seen = {visual_key(target)}
+    cands = [p for p in pool if p["id"] != target["id"]]
+    random.shuffle(cands)
+    out: list[dict] = []
+    for p in cands:
+        k = visual_key(p)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(p)
+        if len(out) == n:
+            return out
+    return None
+
 
 def ex_card(w: dict) -> dict:
     return {"type": "card", "word": w}
 
 
 def ex_pick_image(target: dict, pool: list[dict]) -> Optional[dict]:
-    distractors = [p for p in pool if p["id"] != target["id"]]
-    if len(distractors) < 3:
+    distractors = distinct_visual_sample(target, pool, 3)
+    if not distractors:
         return None
-    options = random.sample(distractors, 3) + [target]
+    options = distractors + [target]
     random.shuffle(options)
     return {
         "type": "pick_image",
@@ -81,10 +113,11 @@ def ex_yes_no(target: dict, pool: list[dict]) -> Optional[dict]:
     is_match = random.random() < 0.5
     shown = target
     if not is_match:
-        others = [p for p in pool if p["id"] != target["id"]]
+        others = distinct_visual_sample(target, pool, 1)
         if not others:
-            return None
-        shown = random.choice(others)
+            is_match = True  # нет визуально отличного «чужого» — показываем правильную картинку
+        else:
+            shown = others[0]
     return {
         "type": "yes_no",
         "word_id": target["id"],
@@ -96,9 +129,21 @@ def ex_yes_no(target: dict, pool: list[dict]) -> Optional[dict]:
 
 
 def ex_memory(words: list[dict]) -> Optional[dict]:
-    if len(words) < 3:
+    # только озвученные и визуально различимые слова — иначе пары немые/неразличимые
+    voiced = [w for w in words if w["audio_url"]]
+    pairs: list[dict] = []
+    seen: set[str] = set()
+    random.shuffle(voiced)
+    for w in voiced:
+        k = visual_key(w)
+        if k in seen:
+            continue
+        seen.add(k)
+        pairs.append(w)
+        if len(pairs) == 3:
+            break
+    if len(pairs) < 3:
         return None
-    pairs = random.sample(words, 3)
     return {"type": "memory", "pairs": [
         {"word_id": p["id"], "text_tt": p["text_tt"], "audio_url": p["audio_url"],
          "image_url": p["image_url"], "emoji": p["emoji"]} for p in pairs
@@ -140,11 +185,27 @@ def ex_repeat_after(target: dict) -> dict:
     return {"type": "repeat_after", "word": target}
 
 
+def _distinct_visual_pick(words: list[dict], n: int, seen: set[str]) -> Optional[list[dict]]:
+    shuffled = list(words)
+    random.shuffle(shuffled)
+    out: list[dict] = []
+    for w in shuffled:
+        k = visual_key(w)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(w)
+        if len(out) == n:
+            return out
+    return None
+
+
 def ex_sort_baskets(theme_a: Theme, words_a: list[dict], theme_b: Theme, words_b: list[dict]) -> Optional[dict]:
-    if len(words_a) < 2 or len(words_b) < 2:
+    seen: set[str] = set()
+    pick_a = _distinct_visual_pick(words_a, 2, seen)
+    pick_b = _distinct_visual_pick(words_b, 2, seen)
+    if not pick_a or not pick_b:
         return None
-    pick_a = random.sample(words_a, 2)
-    pick_b = random.sample(words_b, 2)
     items = [
         {"word_id": w["id"], "text_tt": w["text_tt"], "audio_url": w["audio_url"],
          "image_url": w["image_url"], "emoji": w["emoji"], "basket": t.id}
@@ -253,11 +314,12 @@ async def compute_streak(db: AsyncSession, user: User) -> int:
 async def learning_path(db: Annotated[AsyncSession, Depends(get_db)], user: Annotated[User, Depends(get_current_user)]):
     units = await get_ordered_units(db)
     progress = await unit_progress_map(db, user)
+    counts = await word_counts_by_theme(db)
     result = []
     prev_done = True  # первый юнит открыт всегда
     for t in units:
-        words = await unit_words(db, t.id)
-        total = lessons_total_for(len(words))
+        word_count = counts.get(t.id, 0)
+        total = lessons_total_for(word_count)
         p = progress.get(t.id)
         stars = p.stars if p else 0
         lessons_done = p.lessons_done if p else 0
@@ -273,7 +335,7 @@ async def learning_path(db: Annotated[AsyncSession, Depends(get_db)], user: Anno
             "title_ru": t.title_ru,
             "title_tt": t.title_tt,
             "icon_emoji": t.icon_emoji or "📚",
-            "word_count": len(words),
+            "word_count": word_count,
             "lessons_total": total,
             "lessons_done": min(lessons_done, total),
             "stars": stars,
@@ -407,6 +469,9 @@ class LessonAnswer(BaseModel):
 async def lesson_answer(answer: LessonAnswer,
                         db: Annotated[AsyncSession, Depends(get_db)],
                         user: Annotated[User, Depends(get_current_user)]):
+    word = (await db.execute(select(Word.id).where(Word.id == answer.word_id))).scalar_one_or_none()
+    if word is None:
+        raise HTTPException(status_code=404, detail="Слово не найдено")
     progress = (await db.execute(
         select(UserProgress).where(UserProgress.user_id == user.id, UserProgress.word_id == answer.word_id)
     )).scalar_one_or_none()
@@ -479,8 +544,20 @@ async def lesson_complete(payload: LessonComplete,
         if not p:
             p = UnitProgress(user_id=user.id, theme_id=theme.id, stars=0, lessons_done=0)
             db.add(p)
-        p.lessons_done = max(p.lessons_done or 0, min(payload.lesson_no, total_lessons))
-        if payload.lesson_no >= total_lessons:  # босс пройден
+        lesson_no = min(payload.lesson_no, total_lessons)
+        if lesson_no > (p.lessons_done or 0) + 1:
+            raise HTTPException(status_code=400, detail="Этот урок ещё не открыт")
+        p.lessons_done = max(p.lessons_done or 0, lesson_no)
+        # копим звёзды за каждый урок (лучший результат)
+        lr = (await db.execute(select(LessonResult).where(
+            LessonResult.user_id == user.id, LessonResult.theme_id == theme.id,
+            LessonResult.lesson_no == lesson_no,
+        ))).scalar_one_or_none()
+        if not lr:
+            db.add(LessonResult(user_id=user.id, theme_id=theme.id, lesson_no=lesson_no, stars=stars))
+        else:
+            lr.stars = max(lr.stars or 0, stars)
+        if lesson_no >= total_lessons:  # босс пройден
             p.stars = max(p.stars or 0, stars)
             if not p.completed_at:
                 p.completed_at = now_utc()
@@ -537,27 +614,34 @@ async def home_summary(db: Annotated[AsyncSession, Depends(get_db)], user: Annot
         completed = bool(p and p.completed_at)
         if prev_done and not completed:
             lessons_done = p.lessons_done if p else 0
-            words = await unit_words(db, t.id)
+            counts = await word_counts_by_theme(db)
+            total = lessons_total_for(counts.get(t.id, 0))
             current = {
                 "theme_id": t.id, "title_ru": t.title_ru, "icon_emoji": t.icon_emoji or "📚",
-                "next_lesson": min(lessons_done + 1, lessons_total_for(len(words))),
-                "lessons_total": lessons_total_for(len(words)),
+                "next_lesson": min(lessons_done + 1, total),
+                "lessons_total": total,
             }
             break
         prev_done = completed
 
     stickers = (await db.execute(select(UserSticker).where(UserSticker.user_id == user.id))).scalars().all()
-    total_stars = sum((p.stars or 0) for p in progress.values())
+    lesson_stars = (await db.execute(
+        select(func.coalesce(func.sum(LessonResult.stars), 0)).where(LessonResult.user_id == user.id)
+    )).scalar_one()
+    daily_stars = (await db.execute(
+        select(func.coalesce(func.sum(DailyLesson.stars), 0)).where(
+            DailyLesson.user_id == user.id, DailyLesson.completed_at.is_not(None))
+    )).scalar_one()
     learned = (await db.execute(
-        select(UserProgress).where(UserProgress.user_id == user.id, UserProgress.strength >= 2)
-    )).scalars().all()
+        select(func.count(UserProgress.id)).where(UserProgress.user_id == user.id, UserProgress.strength >= 2)
+    )).scalar_one()
 
     return {
         "username": user.username,
         "daily_done": daily_done,
         "streak": await compute_streak(db, user),
         "stickers": [s.sticker for s in stickers],
-        "total_stars": total_stars,
-        "learned_words": len(learned),
+        "total_stars": int(lesson_stars) + int(daily_stars),
+        "learned_words": learned,
         "current_unit": current,
     }

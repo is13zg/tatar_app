@@ -41,6 +41,7 @@
   <script>
     function token() { return localStorage.getItem('token'); }
     if (!token()) location.href = '/static/pages/login.html';
+    document.getElementById('logout').onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
 
     async function api(path) {
       const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token() } });

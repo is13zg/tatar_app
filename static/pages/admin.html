@@ -99,7 +99,12 @@
 
   <script>
     function token() { return localStorage.getItem('token'); }
-    if (!token()) { location.href = '/static/login.html'; }
+    if (!token()) { location.href = '/static/pages/login.html'; }
+    // страница только для админа — остальных уводим на главную
+    fetch('/auth/me', { headers: { 'Authorization': 'Bearer ' + token() } })
+      .then(r => r.ok ? r.json() : null)
+      .then(me => { if (!me || !me.is_admin) location.href = '/static/pages/home.html'; })
+      .catch(() => {});
 
     async function postForm(url, form) {
       const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token() }, body: form });

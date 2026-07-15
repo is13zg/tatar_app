@@ -85,7 +85,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: 
 
 @app.get("/auth/me", response_model=UserOut)
 async def me(user: Annotated[User, Depends(get_current_user)]):
-    return UserOut(id=user.id, username=user.username, email=user.email, created_at=user.created_at)
+    return UserOut(id=user.id, username=user.username, email=user.email, created_at=user.created_at, is_admin=user.is_admin)
 
 
 @app.get("/themes", response_model=list[ThemeOut])

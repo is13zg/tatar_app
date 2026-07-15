@@ -19,6 +19,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
+    username: str = Field(min_length=2, max_length=32)
     password: str = Field(min_length=4)
     password_confirm: str = Field(min_length=4)
 
@@ -32,6 +33,7 @@ class UserCreate(UserBase):
 class UserOut(UserBase):
     id: int
     created_at: datetime
+    is_admin: bool = False
 
 
 class ThemeOut(BaseModel):

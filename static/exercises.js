@@ -43,10 +43,10 @@
     return new Promise(r => { el.onended = () => r(); el.play().catch(() => r()); setTimeout(r, 1500); });
   }
 
-  function el(tag, cls, html) {
+  function el(tag, cls, text) {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
-    if (html !== undefined) n.innerHTML = html;
+    if (text !== undefined) n.textContent = text; // textContent: данные из БД не должны исполняться как HTML
     return n;
   }
 
