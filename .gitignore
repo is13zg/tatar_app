@@ -1,0 +1,6 @@
+app.db
+data/
+__pycache__/
+*.pyc
+.venv/
+server_data/

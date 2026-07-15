@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Админ — TT-Learn Kids</title>
+  <style>
+    :root { --maxw: 900px; }
+    body { font-family: system-ui, sans-serif; margin: 0; }
+    .wrap { min-height: 100dvh; display: grid; place-items: center; padding: 20px; }
+    .card { width: 100%; max-width: var(--maxw); border: 1px solid #e5e7eb; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+    h1 { margin: 0 0 16px; text-align: center; }
+    h2 { margin: 24px 0 12px; }
+    .grid { display: grid; gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    input[type="text"], textarea, button { padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; }
+    input[type="file"] { padding: 8px; }
+    button { background: #2563eb; color: white; border: none; cursor: pointer; }
+    .hint { font-size: 14px; color: #6b7280; }
+    .msg { margin-top: 8px; min-height: 1.2em; }
+    .row { display: grid; gap: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card grid">
+      <h1>Админ: импорт слов</h1>
+
+      <section class="row">
+        <h2>Создать тему</h2>
+        <div class="field">
+          <label>Название темы (по-русски)</label>
+          <input id="new_theme" type="text" placeholder="Например: Фрукты" />
+        </div>
+        <div class="field">
+          <label>Описание (необязательно)</label>
+          <input id="new_theme_desc" type="text" placeholder="Краткое описание" />
+        </div>
+        <button id="btnCreateTheme">Создать тему</button>
+        <div class="msg" id="msgTheme"></div>
+      </section>
+
+      <section class="row">
+        <h2>ZIP (CSV + медиа)</h2>
+        <div class="field">
+          <label>Название темы (по-русски)</label>
+          <input id="zip_theme" type="text" placeholder="Например: Животные" />
+        </div>
+        <div class="field">
+          <label>ZIP файл</label>
+          <input id="zip" type="file" accept=".zip" />
+          <div class="hint">CSV: text_ru,text_tt,image_path,audio_path. Медиа должны быть в ZIP по указанным путям.</div>
+        </div>
+        <button id="btnZip">Загрузить ZIP</button>
+        <div class="msg" id="msgZip"></div>
+      </section>
+
+      <section class="row">
+        <h2>CSV (без ZIP)</h2>
+        <div class="field">
+          <label>ID темы или название темы</label>
+          <input id="csv_theme_id" type="text" placeholder="theme_id (число)" />
+          <input id="csv_theme_title" type="text" placeholder="или theme_title_ru" />
+        </div>
+        <div class="field">
+          <label>CSV файл</label>
+          <input id="csv" type="file" accept=".csv" />
+          <div class="hint">CSV: text_ru,text_tt,image_url,audio_url. URLы уже абсолютные или относительно /static/…</div>
+        </div>
+        <button id="btnCsv">Загрузить CSV</button>
+        <div class="msg" id="msgCsv"></div>
+      </section>
+
+      <section class="row">
+        <h2>JSON</h2>
+        <div class="field">
+          <label>JSON</label>
+          <textarea id="json" rows="8" placeholder='{"theme_id": 1, "words": [{"text_ru":"кот","text_tt":"песи","image_url":"/static/...","audio_url":"/static/..."}]}'></textarea>
+          <div class="hint">Можно вместо theme_id указать theme_title_ru.</div>
+        </div>
+        <button id="btnJson">Загрузить JSON</button>
+        <div class="msg" id="msgJson"></div>
+      </section>
+
+      <div class="hint">Доступ только для администратора (admin / admin217). Токен берётся из localStorage (после входа на pages/login.html).</div>
+    </div>
+  </div>
+
+  <script>
+    function token() { return localStorage.getItem('token'); }
+    if (!token()) { location.href = '/static/login.html'; }
+
+    async function postForm(url, form) {
+      const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token() }, body: form });
+      const data = await res.json(); if (!res.ok) throw new Error(data.detail || 'Ошибка'); return data;
+    }
+    async function postJson(url, obj) {
+      const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
+      const data = await res.json(); if (!res.ok) throw new Error(data.detail || 'Ошибка'); return data;
+    }
+
+    document.getElementById('btnCreateTheme').onclick = async () => {
+      const title = document.getElementById('new_theme').value.trim();
+      const desc = document.getElementById('new_theme_desc').value.trim();
+      const form = new FormData(); form.append('title_ru', title); form.append('description', desc);
+      const msg = document.getElementById('msgTheme'); msg.textContent = '';
+      try { const data = await postForm('/admin/theme_create', form); msg.style.color = '#16a34a'; msg.textContent = `Тема создана id=${data.id}`; } catch(e){ msg.style.color = '#ef4444'; msg.textContent = e.message; }
+    };
+
+    document.getElementById('btnZip').onclick = async () => {
+      const theme = document.getElementById('zip_theme').value.trim();
+      const file = document.getElementById('zip').files[0];
+      const form = new FormData(); form.append('theme_title_ru', theme); form.append('file', file);
+      const msg = document.getElementById('msgZip'); msg.textContent = '';
+      try { const data = await postForm('/admin/upload_zip', form); msg.style.color = '#16a34a'; msg.textContent = `Добавлено ${data.added} слов`; } catch(e){ msg.style.color = '#ef4444'; msg.textContent = e.message; }
+    };
+
+    document.getElementById('btnCsv').onclick = async () => {
+      const themeId = document.getElementById('csv_theme_id').value.trim();
+      const themeTitle = document.getElementById('csv_theme_title').value.trim();
+      const file = document.getElementById('csv').files[0];
+      const form = new FormData(); if (themeId) form.append('theme_id', themeId); if (themeTitle) form.append('theme_title_ru', themeTitle); form.append('file', file);
+      const msg = document.getElementById('msgCsv'); msg.textContent = '';
+      try { const data = await postForm('/admin/words_csv', form); msg.style.color = '#16a34a'; msg.textContent = `Добавлено ${data.added} слов`; } catch(e){ msg.style.color = '#ef4444'; msg.textContent = e.message; }
+    };
+
+    document.getElementById('btnJson').onclick = async () => {
+      const txt = document.getElementById('json').value;
+      const msg = document.getElementById('msgJson'); msg.textContent = '';
+      try { const obj = JSON.parse(txt); const data = await postJson('/admin/words_json', obj); msg.style.color = '#16a34a'; msg.textContent = `Добавлено ${data.added} слов`; } catch(e){ msg.style.color = '#ef4444'; msg.textContent = e.message; }
+    };
+  </script>
+</body>
+</html>

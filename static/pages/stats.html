@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Статистика — TT-Learn Kids</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; }
+    nav { display: flex; gap: 12px; padding: 12px; border-bottom: 1px solid #eee; }
+    nav a { text-decoration: none; color: #2563eb; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .theme { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
+    .muted { color: #6b7280; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/static/pages/study.html">Изучение</a>
+    <a href="/static/pages/repeat.html">Повторение</a>
+    <a href="/static/pages/mistakes.html">Работа над ошибками</a>
+    <a href="/static/pages/stats.html">Статистика</a>
+    <a href="/static/pages/login.html" id="logout">Выход</a>
+  </nav>
+
+  <div class="wrap">
+    <div class="card" id="overall"></div>
+    <div class="card">
+      <h3>По темам</h3>
+      <div class="grid" id="themes"></div>
+    </div>
+    <div class="card">
+      <h3>Топ 10 по выученным словам</h3>
+      <div id="leaders"></div>
+    </div>
+  </div>
+
+  <script>
+    function token() { return localStorage.getItem('token'); }
+    if (!token()) location.href = '/static/pages/login.html';
+
+    async function api(path) {
+      const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token() } });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    (async () => {
+      const s = await api('/stats');
+      const overall = document.getElementById('overall');
+      overall.innerHTML = `
+        <div><b>Всего слов:</b> ${s.total_words}</div>
+        <div><b>Выучено:</b> ${s.learned_words}</div>
+        <div><b>Ошибок всего:</b> ${s.mistakes_total}</div>
+        <div><b>Пользователей всего:</b> ${s.total_users}</div>
+        <div class="muted">Последнее обновление: сейчас</div>
+      `;
+      const cont = document.getElementById('themes');
+      s.themes.forEach(t => {
+        const el = document.createElement('div'); el.className = 'theme';
+        el.innerHTML = `<div><b>${t.title_ru}</b></div>
+          <div>Всего: ${t.total_words}</div>
+          <div>Выучено: ${t.learned_words}</div>
+          <div>Ошибок: ${t.mistakes}</div>`;
+        cont.appendChild(el);
+      });
+      const leaders = document.getElementById('leaders');
+      leaders.innerHTML = s.leaderboard.map((r, i) => `${i+1}. ${r.username} — ${r.learned}`).join('<br/>');
+    })();
+  </script>
+</body>
+</html>

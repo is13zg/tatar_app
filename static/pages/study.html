@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Изучение — TT-Learn Kids</title>
+  <style>
+    :root { --maxw: 640px; }
+    body { font-family: system-ui, sans-serif; margin: 0; }
+    nav { display: flex; gap: 12px; padding: 12px; border-bottom: 1px solid #eee; }
+    nav a { text-decoration: none; color: #2563eb; }
+    .wrap { min-height: calc(100dvh - 50px); display: grid; place-items: center; padding: 16px; }
+    .card { width: 100%; max-width: var(--maxw); border: 1px solid #e5e7eb; padding: 16px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.04); }
+    .center { display: grid; justify-items: center; gap: 12px; text-align: center; }
+    .theme-choose { display: grid; gap: 8px; }
+    select, button { padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #d1d5db; }
+    .img { width: min(80vw, 360px); aspect-ratio: 1/1; border-radius: 12px; object-fit: cover; border: 1px solid #e5e7eb; }
+    .title-ru { font-size: 20px; font-weight: 600; }
+    .title-tt { font-size: 22px; font-weight: 700; }
+    .controls { display: flex; gap: 12px; }
+    .play { width: 48px; height: 48px; border-radius: 999px; border: 1px solid #d1d5db; display: grid; place-items: center; cursor: pointer; background: white; }
+    .play:after { content: ''; border-left: 12px solid #111; border-top: 8px solid transparent; border-bottom: 8px solid transparent; margin-left: 4px; }
+    .ok { background: #22c55e; color: white; border: 0; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/static/pages/study.html">Изучение</a>
+    <a href="/static/pages/repeat.html">Повторение</a>
+    <a href="/static/pages/mistakes.html">Работа над ошибками</a>
+    <a href="/static/pages/stats.html">Статистика</a>
+    <a href="/static/pages/login.html" id="logout">Выход</a>
+  </nav>
+
+  <div class="wrap">
+    <div class="card">
+      <div id="screen" class="center">
+        <!-- theme selection or step view -->
+      </div>
+    </div>
+  </div>
+
+  <audio id="audio-word"></audio>
+
+  <script>
+    function token() { return localStorage.getItem('token'); }
+    function authHeaders() { const t = token(); return t ? { 'Authorization': 'Bearer ' + t } : {}; }
+    if (!token()) location.href = '/static/pages/login.html';
+
+    async function api(path, opts={}) {
+      const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(opts.headers||{}) } });
+      if (!res.ok) throw new Error(await res.text());
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) return res.json();
+      return res.text();
+    }
+
+    function tts(text) { try { const u = new SpeechSynthesisUtterance(text); speechSynthesis.cancel(); speechSynthesis.speak(u); } catch {} }
+
+    function playWordAudio(url, fallbackText) {
+      const a = document.getElementById('audio-word');
+      try { a.pause(); a.currentTime = 0; } catch {}
+      if (url) {
+        a.src = url; a.play().catch(() => { if (fallbackText) tts(fallbackText); });
+      } else if (fallbackText) {
+        tts(fallbackText);
+      }
+    }
+
+    async function chooseTheme() {
+      const screen = document.getElementById('screen'); screen.innerHTML = '';
+      const themes = await api('/themes');
+      if (!themes.length) { screen.textContent = 'Нет тем'; return; }
+      const grid = document.createElement('div');
+      grid.style.display = 'grid'; grid.style.gridTemplateColumns = 'repeat(3, minmax(0,1fr))'; grid.style.gap = '12px';
+      themes.forEach(t => {
+        const card = document.createElement('button');
+        card.style.border = '1px solid #e5e7eb'; card.style.borderRadius = '12px'; card.style.padding = '8px'; card.style.display = 'grid'; card.style.gap = '6px';
+        const img = document.createElement('img'); img.src = t.sample_image_url || '/static/noimg.png'; img.style.width='100%'; img.style.aspectRatio='1/1'; img.style.objectFit='cover'; img.style.borderRadius='8px';
+        const title = document.createElement('div'); title.textContent = t.title_ru; title.style.fontWeight = '600';
+        const desc = document.createElement('div'); desc.textContent = t.description || ''; desc.style.fontSize = '14px'; desc.style.color = '#6b7280';
+        card.onclick = () => startStudy(t.id);
+        card.appendChild(img); card.appendChild(title); card.appendChild(desc);
+        grid.appendChild(card);
+      });
+      screen.appendChild(grid);
+    }
+
+    async function startStudy(themeId) {
+      const words = await api(`/themes/${themeId}/words`);
+      let idx = 0;
+      const next = () => {
+        if (idx >= words.length) { document.getElementById('screen').textContent = 'Готово!'; return; }
+        renderWord(words[idx]);
+        idx += 1;
+      };
+      function renderWord(w) {
+        const screen = document.getElementById('screen'); screen.innerHTML = '';
+        const ru = document.createElement('div'); ru.className = 'title-ru'; ru.textContent = w.text_ru;
+        const img = document.createElement('img'); img.className = 'img'; img.src = w.image_url || '/static/noimg.png'; img.alt = w.text_ru;
+        const tt = document.createElement('div'); tt.className = 'title-tt'; tt.textContent = w.text_tt;
+        const controls = document.createElement('div'); controls.className = 'controls';
+        const playBtn = document.createElement('div'); playBtn.className = 'play'; playBtn.title = 'Произнести'; playBtn.onclick = () => playWordAudio(w.audio_url, w.text_tt);
+        const ok = document.createElement('button'); ok.className = 'ok'; ok.textContent = 'Өйрәндем';
+        let pressed = false; ok.onclick = () => { if (pressed) return; pressed = true; next(); };
+        controls.appendChild(playBtn); controls.appendChild(ok);
+        screen.appendChild(ru); screen.appendChild(img); screen.appendChild(tt); screen.appendChild(controls);
+        // auto play on show
+        playWordAudio(w.audio_url, w.text_tt);
+      }
+      next();
+    }
+
+    document.getElementById('logout').onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
+
+    chooseTheme();
+  </script>
+</body>
+</html>
