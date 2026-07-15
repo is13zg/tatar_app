@@ -82,6 +82,17 @@
         <div class="msg" id="msgJson"></div>
       </section>
 
+      <section class="row">
+        <h2>Слова и медиа</h2>
+        <div class="field">
+          <label>Тема</label>
+          <select id="w_theme" style="padding:12px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;"></select>
+        </div>
+        <button id="btnTtsAll">🔊 Озвучить ВСЕ слова без звука (tat-tts)</button>
+        <div class="msg" id="msgTtsAll"></div>
+        <div id="w_list" style="display:grid;gap:6px;"></div>
+      </section>
+
       <div class="hint">Доступ только для администратора (admin / admin217). Токен берётся из localStorage (после входа на pages/login.html).</div>
     </div>
   </div>
@@ -128,6 +139,78 @@
       const txt = document.getElementById('json').value;
       const msg = document.getElementById('msgJson'); msg.textContent = '';
       try { const obj = JSON.parse(txt); const data = await postJson('/admin/words_json', obj); msg.style.color = '#16a34a'; msg.textContent = `Добавлено ${data.added} слов`; } catch(e){ msg.style.color = '#ef4444'; msg.textContent = e.message; }
+    };
+
+    // --- Слова и медиа ---
+    async function getJson(url) {
+      const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token() } });
+      const data = await res.json(); if (!res.ok) throw new Error(data.detail || 'Ошибка'); return data;
+    }
+
+    async function loadWordList() {
+      const themeId = document.getElementById('w_theme').value;
+      const list = document.getElementById('w_list');
+      list.innerHTML = 'Загрузка…';
+      const words = await getJson(`/themes/${themeId}/words`);
+      list.innerHTML = '';
+      words.forEach(w => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;flex-wrap:wrap;';
+        const pic = (w.image_url && !w.image_url.includes('noimg'))
+          ? `<img src="${w.image_url}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;">`
+          : `<span style="font-size:30px;">${w.emoji || '❓'}</span>`;
+        const hasAudio = w.audio_url || w.tts_url;
+        row.innerHTML = `${pic}
+          <b style="min-width:110px;">${w.text_tt}</b>
+          <span style="color:#6b7280;min-width:100px;">${w.text_ru}</span>
+          <span>${hasAudio ? '🔊' : '🔇'}</span>`;
+        const playBtn = document.createElement('button');
+        playBtn.textContent = '▶';
+        playBtn.style.cssText = 'padding:6px 10px;';
+        playBtn.onclick = () => { if (hasAudio) new Audio(w.audio_url || w.tts_url).play(); };
+        const ttsBtn = document.createElement('button');
+        ttsBtn.textContent = 'Озвучить';
+        ttsBtn.style.cssText = 'padding:6px 10px;background:#8b5cf6;';
+        ttsBtn.onclick = async () => {
+          ttsBtn.textContent = '…';
+          try { await postJson(`/admin/tts_word/${w.id}`, {}); ttsBtn.textContent = '✅'; }
+          catch (e) { ttsBtn.textContent = 'Ошибка'; }
+        };
+        const imgInput = document.createElement('input');
+        imgInput.type = 'file'; imgInput.accept = 'image/*';
+        imgInput.style.cssText = 'max-width:180px;font-size:12px;';
+        imgInput.onchange = async () => {
+          const f = imgInput.files[0]; if (!f) return;
+          const form = new FormData(); form.append('file', f);
+          try { await postForm(`/admin/word_image/${w.id}`, form); loadWordList(); } catch (e) { alert(e.message); }
+        };
+        row.appendChild(playBtn); row.appendChild(ttsBtn); row.appendChild(imgInput);
+        list.appendChild(row);
+      });
+    }
+
+    (async () => {
+      try {
+        const themes = await getJson('/themes');
+        const sel = document.getElementById('w_theme');
+        themes.forEach(t => {
+          const o = document.createElement('option'); o.value = t.id; o.textContent = `${t.id}. ${t.title_ru}`;
+          sel.appendChild(o);
+        });
+        sel.onchange = loadWordList;
+        if (themes.length) loadWordList();
+      } catch (e) {}
+    })();
+
+    document.getElementById('btnTtsAll').onclick = async () => {
+      const msg = document.getElementById('msgTtsAll');
+      msg.style.color = '#6b7280'; msg.textContent = 'Озвучиваю… это может занять несколько минут';
+      try {
+        const data = await postJson('/admin/tts_all?limit=500', {});
+        msg.style.color = '#16a34a';
+        msg.textContent = `Готово: ${data.done} слов` + (data.remaining_errors.length ? `, ошибки: ${data.remaining_errors.join('; ')}` : '');
+        loadWordList();
+      } catch (e) { msg.style.color = '#ef4444'; msg.textContent = e.message; }
     };
   </script>
 </body>

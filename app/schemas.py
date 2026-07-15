@@ -48,6 +48,8 @@ class WordOut(BaseModel):
     image_url: Optional[str] = None
     audio_url: Optional[str] = None
     theme_id: int
+    emoji: Optional[str] = None
+    tts_url: Optional[str] = None
 
 
 class StudyItem(BaseModel):

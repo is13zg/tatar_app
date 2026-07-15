@@ -109,6 +109,8 @@ async def list_words(theme_id: int, db: Annotated[AsyncSession, Depends(get_db)]
             image_url=w.image_url,
             audio_url=w.audio_url,
             theme_id=w.theme_id,
+            emoji=w.emoji,
+            tts_url=w.tts_url,
         )
         for w in words
     ]
