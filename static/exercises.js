@@ -89,6 +89,15 @@
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+  function shuffled(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
   function confetti() {
     const box = el('div', 'confetti');
     const colors = ['#f97316', '#8b5cf6', '#22c55e', '#eab308', '#3b82f6', '#ec4899'];
@@ -146,7 +155,7 @@
     screen.appendChild(head);
     const grid = el('div', 'tile-grid'); screen.appendChild(grid);
     let locked = false;
-    item.options.forEach(opt => {
+    shuffled(item.options).forEach(opt => {
       const t = el('button', 'tile');
       t.appendChild(visual(opt));
       t.onclick = async () => {
@@ -200,9 +209,8 @@
       cards.push({ pair: p, kind: 'img' });
       cards.push({ pair: p, kind: 'audio' });
     });
-    cards.sort(() => Math.random() - 0.5);
     let open = null, matched = 0, wrong = 0, locked = false;
-    cards.forEach(c => {
+    shuffled(cards).forEach(c => {
       const b = el('button', 'mem-card', '❓');
       b.onclick = async () => {
         if (locked || b.classList.contains('open') || b.classList.contains('matched')) return;
@@ -302,7 +310,9 @@
     const row = el('div', ''); row.style.cssText = 'display:flex;gap:16px;justify-content:center;margin-top:14px;';
     const colors = ['#8b5cf6', '#f97316', '#0ea5e9'];
     let locked = false, played = false;
-    const buttons = item.options.map((o, i) => {
+    // клиентское перемешивание: порядок кнопок и порядок прослушивания
+    // независимы и от сервера, и друг от друга — позиция звука ничего не выдаёт
+    const buttons = shuffled(item.options).map((o, i) => {
       const b = el('button', 'play-btn', '🔊');
       b.style.background = colors[i % colors.length];
       b.onclick = async () => {
@@ -321,7 +331,7 @@
     // автопроигрывание вариантов по очереди с подсветкой, затем можно выбирать
     (async () => {
       await sleep(400);
-      for (const { b, o } of buttons) {
+      for (const { b, o } of shuffled(buttons)) {
         b.style.transform = 'scale(1.18)';
         await playAudio(o.audio_url);
         b.style.transform = '';
