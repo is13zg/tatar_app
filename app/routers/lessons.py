@@ -137,6 +137,7 @@ def today_str() -> str:
 def word_dto(w: Word) -> dict:
     return {
         "id": w.id,
+        "theme_id": w.theme_id,
         "text_tt": w.text_tt,
         "text_ru": w.text_ru,
         "image_url": w.image_url,
@@ -470,6 +471,15 @@ ODD_ONE_CATEGORY_THEMES = {
     "Пенал и рюкзак",
 }
 
+# «Покорми Акбая» осмысленно только на съедобном: щенка кормят едой, а не овцой/коровой.
+# На остальных темах закрепление даёт обычный «найди картинку».
+EDIBLE_THEMES = {
+    "Продукты и напитки",
+    "Фрукты/ягоды",
+    "Овощи",
+    "Блюда и вкусы",
+}
+
 
 def ex_opposite(target: dict, pool: list[dict], known_pool: list[dict]) -> Optional[dict]:
     """Найди наоборот: звучит слово — выбери картинку противоположности.
@@ -685,7 +695,7 @@ def _no_three_in_a_row(items: list[dict]) -> list[dict]:
 def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[dict],
                     sort_payload: Optional[dict] = None, phrase_mode: bool = False,
                     allow_build: bool = False, sentences_ok: bool = False,
-                    late_unit: bool = False) -> list[dict]:
+                    late_unit: bool = False, feed_ok: bool = False) -> list[dict]:
     """Урок: чередование «карточка → сразу практика» + разнообразное закрепление.
     phrase_mode: тема из фраз — только карточки, звучание и повторение за диктором.
     allow_build: «собери слово» — только с 3-го урока юнита (для начала это слишком сложно)."""
@@ -715,7 +725,7 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                 r = random.random()
                 if r < 0.25:
                     e = ex_bubbles(w, pool)
-                elif r < 0.45:
+                elif feed_ok and r < 0.45:  # «покорми Акбая» — только на съедобных темах
                     e = ex_feed(w, pool)
             if not e:
                 e = ex_pick_image(w, pool)
@@ -1028,7 +1038,8 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         items = build_exercises(new_words, pool, review, sort_payload,
                                 phrase_mode=phrase_mode, allow_build=lesson_no >= 3,
                                 sentences_ok=lesson_no >= 2,
-                                late_unit=(theme.order_index or 0) >= 14)
+                                late_unit=(theme.order_index or 0) >= 14,
+                                feed_ok=theme.title_ru in EDIBLE_THEMES)
 
     if len(items) < 3:
         # страховка: без озвучки/картинок упражнения могли не собраться — даём карточки
@@ -1044,14 +1055,22 @@ async def unit_lesson(theme_id: int, lesson_no: int,
     }
 
 
-def _practice_items(words: list[dict], pool: list[dict], limit: int = 10) -> list[dict]:
+async def edible_theme_ids(db: AsyncSession) -> set:
+    """id тем с едой — где «Покорми Акбая» уместно (для смешанной тренировки)."""
+    rows = (await db.execute(select(Theme.id).where(Theme.title_ru.in_(EDIBLE_THEMES)))).all()
+    return {r[0] for r in rows}
+
+
+def _practice_items(words: list[dict], pool: list[dict], limit: int = 10,
+                    feed_theme_ids: Optional[set] = None) -> list[dict]:
     """Практика без карточек — для тренировки/трудных слов."""
     random.shuffle(words)
     items: list[dict] = []
     for w in words[:limit]:
         gens = [lambda: ex_pick_image(w, pool), lambda: ex_yes_no(w, pool),
-                lambda: ex_pick_word_audio(w, pool), lambda: ex_bubbles(w, pool),
-                lambda: ex_feed(w, pool)]
+                lambda: ex_pick_word_audio(w, pool), lambda: ex_bubbles(w, pool)]
+        if feed_theme_ids and w.get("theme_id") in feed_theme_ids:  # «покорми» — только съедобное
+            gens.append(lambda: ex_feed(w, pool))
         random.shuffle(gens)
         for g in gens:
             e = g()
@@ -1084,7 +1103,8 @@ async def review_mistakes(
     pool_words = (await db.execute(select(Word).where(Word.theme_id.in_(theme_ids)))).scalars().all()
     pool = [word_dto(w) for w in pool_words]
     return {"title": "Трудные слова", "icon": "💪",
-            "items": _practice_items(dtos, pool, limit=8), "empty": False}
+            "items": _practice_items(dtos, pool, limit=8, feed_theme_ids=await edible_theme_ids(db)),
+            "empty": False}
 
 
 @router.get("/review/{theme_id}")
@@ -1111,7 +1131,8 @@ async def review_theme(
                 items.append(e)
         items = _no_three_in_a_row(items)
     else:
-        items = _practice_items(list(pool), pool, limit=8)
+        feed_ids = await edible_theme_ids(db) if theme.title_ru in EDIBLE_THEMES else None
+        items = _practice_items(list(pool), pool, limit=8, feed_theme_ids=feed_ids)
     return {"title": theme.title_ru, "icon": theme.icon_emoji or "💪", "items": items, "empty": not items}
 
 
@@ -1155,7 +1176,7 @@ async def daily_lesson(db: Annotated[AsyncSession, Depends(get_db)], user: Annot
     fresh = [w for w in pool if w["id"] not in seen_ids][:3]
 
     items = build_exercises(fresh, pool, review, phrase_mode=current_unit.title_ru in PHRASE_THEMES,
-                            sentences_ok=True)
+                            sentences_ok=True, feed_ok=current_unit.title_ru in EDIBLE_THEMES)
     if not items:
         raise HTTPException(status_code=400, detail="Не удалось собрать задание")
 
