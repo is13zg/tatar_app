@@ -19,6 +19,7 @@ import argparse
 import base64
 import io
 import json
+from pathlib import Path
 import os
 import sys
 import time
@@ -295,9 +296,39 @@ def main() -> None:
     ap.add_argument("--delay", type=float, default=1.0, help="пауза между генерациями, сек")
     ap.add_argument("--dry-run", action="store_true", help="только показать, что будет сгенерировано")
     ap.add_argument("--redo-uploads", action="store_true", help="перегенерировать и ранее сгенерированные (uploads)")
+    ap.add_argument("--regen-file", help="JSON [{id, prompt}] — точечная перегенерация по списку с кастомными промптами")
     args = ap.parse_args()
 
     headers = login(args.app, args.user, args.password)
+
+    if args.regen_file:
+        plan = json.loads(Path(args.regen_file).read_text(encoding="utf-8"))
+        provider = {"pollinations": Pollinations, "fusionbrain": FusionBrain, "openai": OpenAIImages}[args.provider]()
+        ok, fail = 0, 0
+        for i, item in enumerate(plan, 1):
+            prompt = PROMPT_EN.format(en=item["prompt"])
+            try:
+                png = provider.generate(prompt)
+                files = {"file": (f"word_{item['id']}.png", io.BytesIO(png), "image/png")}
+                r = httpx.post(f"{args.app}/admin/word_image/{item['id']}", headers=headers, files=files, timeout=60)
+                if r.status_code == 401:
+                    headers = login(args.app, args.user, args.password)
+                    files = {"file": (f"word_{item['id']}.png", io.BytesIO(png), "image/png")}
+                    r = httpx.post(f"{args.app}/admin/word_image/{item['id']}", headers=headers, files=files, timeout=60)
+                r.raise_for_status()
+                ok += 1
+                print(f"[{i}/{len(plan)}] ✅ id={item['id']}")
+                fail = 0
+            except Exception as e:
+                fail += 1
+                print(f"[{i}/{len(plan)}] ❌ id={item['id']}: {e}")
+                if fail >= 8:
+                    print("Слишком много ошибок подряд — останавливаюсь.")
+                    break
+            time.sleep(args.delay)
+        print(f"Готово: {ok} ок, {fail} ошибок")
+        return
+
     todo = words_without_images(args.app, headers, args.theme, redo_uploads=args.redo_uploads)[: args.limit]
     print(f"Слов без картинок: {len(todo)}")
     if args.dry_run:
