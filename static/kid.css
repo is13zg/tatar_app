@@ -127,6 +127,21 @@ body {
 .hole-good { box-shadow: 0 0 0 5px var(--good); }
 .hole-bad { box-shadow: 0 0 0 5px var(--bad); }
 
+/* окошки */
+.windows-cell { position: relative; }
+.shutter {
+  position: absolute; inset: 0; background: linear-gradient(160deg, #93c5fd, #60a5fa);
+  display: grid; place-items: center; font-size: clamp(40px, 12vw, 64px);
+  border-radius: 18px; transition: transform .35s, opacity .35s;
+}
+.shutter-open { transform: scale(0.05); opacity: 0; pointer-events: none; }
+
+/* фонарик */
+.flash-stage { position: relative; width: 100%; border-radius: 20px; overflow: hidden; aspect-ratio: 4/3; display: grid; place-items: center; background: #0f172a; }
+.flash-stage img { max-width: 80%; aspect-ratio: 1/1; object-fit: cover; border-radius: 16px; }
+.flash-stage .emoji { font-size: clamp(90px, 28vw, 140px); }
+.flash-dark { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.97); touch-action: none; cursor: crosshair; }
+
 /* занавес «кто убежал» */
 .curtain { position: relative; }
 .curtain::after {

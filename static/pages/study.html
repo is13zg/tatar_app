@@ -3,130 +3,137 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Изучение — TT-Learn Kids</title>
+  <title>Словарик — TT-Learn Kids</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
+  <link rel="stylesheet" href="/static/kid.css" />
   <style>
-    :root { --maxw: 640px; }
-    body { font-family: system-ui, sans-serif; margin: 0; }
-    nav { display: flex; gap: 12px; padding: 12px; border-bottom: 1px solid #eee; }
-    nav a { text-decoration: none; color: #2563eb; }
-    .wrap { min-height: calc(100dvh - 50px); display: grid; place-items: center; padding: 16px; }
-    .card { width: 100%; max-width: var(--maxw); border: 1px solid #e5e7eb; padding: 16px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.04); }
-    .center { display: grid; justify-items: center; gap: 12px; text-align: center; }
-    .theme-choose { display: grid; gap: 8px; }
-    select, button { padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #d1d5db; }
-    .img { width: min(80vw, 360px); aspect-ratio: 1/1; border-radius: 12px; object-fit: cover; border: 1px solid #e5e7eb; }
-    .title-ru { font-size: 20px; font-weight: 600; }
-    .title-tt { font-size: 22px; font-weight: 700; }
-    .controls { display: flex; gap: 12px; }
-    .play { width: 48px; height: 48px; border-radius: 999px; border: 1px solid #d1d5db; display: grid; place-items: center; cursor: pointer; background: white; }
-    .play:after { content: ''; border-left: 12px solid #111; border-top: 8px solid transparent; border-bottom: 8px solid transparent; margin-left: 4px; }
-    .ok { background: #22c55e; color: white; border: 0; }
+    .theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .theme-card {
+      background: var(--card); border: none; border-radius: 20px; padding: 14px 8px;
+      box-shadow: var(--shadow); cursor: pointer; display: grid; gap: 4px; justify-items: center;
+    }
+    .theme-card .ic { font-size: 44px; line-height: 1.1; }
+    .theme-card .tt { font-weight: 800; font-size: 16px; text-align: center; }
+    .theme-card .sub { color: #6b7280; font-size: 13px; }
+    .nav-row { display: flex; gap: 12px; margin-top: 14px; width: 100%; }
+    .nav-row .kid-btn { font-size: 20px; padding: 14px; }
+    .counter { text-align: center; color: #6b7280; font-weight: 700; margin-top: 8px; }
+    .sent { text-align: center; margin-top: 10px; background: #fff7ed; border-radius: 14px; padding: 10px 14px; }
+    .sent .l1 { font-size: 19px; font-weight: 600; }
+    .sent .l1 b { color: #ea580c; }
+    .sent .l2 { font-size: 14px; color: #92400e; margin-top: 2px; }
   </style>
 </head>
 <body>
-  <nav>
-    <a href="/static/pages/home.html">🏠 Главная</a>
-    <a href="/static/pages/study.html">Изучение</a>
-    <a href="/static/pages/repeat.html">Повторение</a>
-    <a href="/static/pages/mistakes.html">Работа над ошибками</a>
-    <a href="/static/pages/stats.html">Статистика</a>
-  </nav>
-
-  <div class="wrap">
-    <div class="card">
-      <div id="screen" class="center">
-        <!-- theme selection or step view -->
-      </div>
+  <div class="kid-wrap">
+    <div class="kid-top">
+      <button class="kid-back" onclick="goBack()">←</button>
+      <div class="kid-chip">📖 Словарик</div>
     </div>
+    <div class="kid-card" id="screen"></div>
   </div>
 
-  <audio id="audio-word"></audio>
-
+  <audio id="player"></audio>
   <script>
     function token() { return localStorage.getItem('token'); }
-    function authHeaders() { const t = token(); return t ? { 'Authorization': 'Bearer ' + t } : {}; }
     if (!token()) location.href = '/static/pages/login.html';
-
-    async function api(path, opts={}) {
-      const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(opts.headers||{}) } });
+    async function api(path) {
+      const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token() } });
+      if (res.status === 401) { location.href = '/static/pages/login.html'; throw new Error('401'); }
       if (!res.ok) throw new Error(await res.text());
-      const ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) return res.json();
-      return res.text();
+      return res.json();
+    }
+    const player = document.getElementById('player');
+    function play(url) { if (!url) return; try { player.pause(); player.currentTime = 0; } catch (e) {} player.src = url; player.play().catch(() => {}); }
+
+    let mode = 'themes', words = [], idx = 0;
+    function goBack() {
+      if (mode === 'word') { mode = 'themes'; showThemes(); }
+      else location.href = '/static/pages/home.html';
     }
 
-    function tts(text) { /* отключено: браузерный голос читал татарский неверно */ }
-
-    function playWordAudio(url, fallbackText) {
-      const a = document.getElementById('audio-word');
-      try { a.pause(); a.currentTime = 0; } catch {}
-      if (url) {
-        a.src = url; a.play().catch(() => { if (fallbackText) tts(fallbackText); });
-      } else if (fallbackText) {
-        tts(fallbackText);
-      }
-    }
-
-    async function chooseTheme() {
-      const screen = document.getElementById('screen'); screen.innerHTML = '';
-      const themes = await api('/themes');
-      if (!themes.length) { screen.textContent = 'Нет тем'; return; }
-      const grid = document.createElement('div');
-      grid.style.display = 'grid'; grid.style.gridTemplateColumns = 'repeat(3, minmax(0,1fr))'; grid.style.gap = '12px';
-      themes.forEach(t => {
-        const card = document.createElement('button');
-        card.style.border = '1px solid #e5e7eb'; card.style.borderRadius = '12px'; card.style.padding = '8px'; card.style.display = 'grid'; card.style.gap = '6px';
-        let img;
-        if (t.sample_image_url && !t.sample_image_url.includes('noimg')) {
-          img = document.createElement('img'); img.src = t.sample_image_url; img.style.width='100%'; img.style.aspectRatio='1/1'; img.style.objectFit='cover'; img.style.borderRadius='8px';
-        } else {
-          img = document.createElement('div'); img.textContent = t.icon_emoji || '📚';
-          img.style.cssText = 'width:100%;aspect-ratio:1/1;display:grid;place-items:center;font-size:64px;background:#fff7ed;border-radius:8px;';
-        }
-        const title = document.createElement('div'); title.textContent = t.title_ru; title.style.fontWeight = '600';
-        const desc = document.createElement('div'); desc.textContent = t.description || ''; desc.style.fontSize = '14px'; desc.style.color = '#6b7280';
-        card.onclick = () => startStudy(t.id);
-        card.appendChild(img); card.appendChild(title); card.appendChild(desc);
-        grid.appendChild(card);
+    let themesCache = [];
+    async function showThemes() {
+      const s = document.getElementById('screen');
+      s.innerHTML = '';
+      if (!themesCache.length) themesCache = await api('/themes');
+      const grid = document.createElement('div'); grid.className = 'theme-grid';
+      themesCache.forEach(t => {
+        const c = document.createElement('button'); c.className = 'theme-card';
+        const ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = t.icon_emoji || '📚';
+        const tt = document.createElement('div'); tt.className = 'tt'; tt.textContent = t.title_ru;
+        const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = t.title_tt || '';
+        c.appendChild(ic); c.appendChild(tt); c.appendChild(sub);
+        c.onclick = () => openTheme(t.id);
+        grid.appendChild(c);
       });
-      screen.appendChild(grid);
+      s.appendChild(grid);
     }
 
-    async function startStudy(themeId) {
-      const words = await api(`/themes/${themeId}/words`);
-      let idx = 0;
-      const next = () => {
-        if (idx >= words.length) { document.getElementById('screen').textContent = 'Готово!'; return; }
-        renderWord(words[idx]);
-        idx += 1;
-      };
-      function renderWord(w) {
-        const screen = document.getElementById('screen'); screen.innerHTML = '';
-        const ru = document.createElement('div'); ru.className = 'title-ru'; ru.textContent = w.text_ru;
-        let img;
-        if (w.image_url && !w.image_url.includes('noimg')) {
-          img = document.createElement('img'); img.className = 'img'; img.src = w.image_url; img.alt = w.text_ru;
-        } else {
-          img = document.createElement('div'); img.textContent = w.emoji || '❓';
-          img.style.cssText = 'font-size:110px;line-height:1.2;text-align:center;';
-        }
-        const tt = document.createElement('div'); tt.className = 'title-tt'; tt.textContent = w.text_tt;
-        const controls = document.createElement('div'); controls.className = 'controls';
-        const playBtn = document.createElement('div'); playBtn.className = 'play'; playBtn.title = 'Произнести'; playBtn.onclick = () => playWordAudio(w.audio_url || w.tts_url, w.text_tt);
-        const ok = document.createElement('button'); ok.className = 'ok'; ok.textContent = 'Өйрәндем';
-        let pressed = false; ok.onclick = () => { if (pressed) return; pressed = true; next(); };
-        controls.appendChild(playBtn); controls.appendChild(ok);
-        screen.appendChild(ru); screen.appendChild(img); screen.appendChild(tt); screen.appendChild(controls);
-        // auto play on show
-        playWordAudio(w.audio_url || w.tts_url, w.text_tt);
+    async function openTheme(themeId) {
+      words = await api(`/themes/${themeId}/words`);
+      if (!words.length) return;
+      idx = 0; mode = 'word';
+      showWord();
+    }
+
+    function showWord() {
+      const s = document.getElementById('screen');
+      s.innerHTML = '';
+      const w = words[idx];
+      const vis = document.createElement('div'); vis.className = 'big-visual';
+      if (w.image_url && !w.image_url.includes('noimg')) {
+        const img = document.createElement('img'); img.src = w.image_url; vis.appendChild(img);
+      } else {
+        const em = document.createElement('div'); em.className = 'emoji'; em.textContent = w.emoji || '❓'; vis.appendChild(em);
       }
-      next();
+      s.appendChild(vis);
+      const big = document.createElement('div'); big.className = 'word-big'; big.textContent = w.text_tt;
+      if (w.text_tt.length > 14) big.style.fontSize = '24px';
+      s.appendChild(big);
+      const small = document.createElement('div'); small.className = 'word-small'; small.textContent = w.text_ru;
+      s.appendChild(small);
+      if (w.sentence_tt) {
+        const box = document.createElement('div'); box.className = 'sent';
+        const l1 = document.createElement('div'); l1.className = 'l1';
+        const i = w.sentence_tt.toLowerCase().indexOf(w.text_tt.toLowerCase());
+        if (i >= 0) {
+          l1.appendChild(document.createTextNode(w.sentence_tt.slice(0, i)));
+          const b = document.createElement('b'); b.textContent = w.sentence_tt.slice(i, i + w.text_tt.length);
+          l1.appendChild(b);
+          l1.appendChild(document.createTextNode(w.sentence_tt.slice(i + w.text_tt.length)));
+        } else l1.textContent = w.sentence_tt;
+        box.appendChild(l1);
+        if (w.sentence_ru) { const l2 = document.createElement('div'); l2.className = 'l2'; l2.textContent = w.sentence_ru; box.appendChild(l2); }
+        s.appendChild(box);
+      }
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;';
+      const pw = document.createElement('button'); pw.className = 'play-btn'; pw.textContent = '🔊'; pw.title = 'Слово';
+      pw.onclick = () => play(w.audio_url || w.tts_url);
+      row.appendChild(pw);
+      if (w.sentence_audio_url) {
+        const ps = document.createElement('button'); ps.className = 'play-btn'; ps.textContent = '💬'; ps.title = 'Предложение';
+        ps.style.background = '#0ea5e9';
+        ps.onclick = () => play(w.sentence_audio_url);
+        row.appendChild(ps);
+      }
+      s.appendChild(row);
+      const nav = document.createElement('div'); nav.className = 'nav-row';
+      const prev = document.createElement('button'); prev.className = 'kid-btn ghost'; prev.textContent = '⬅';
+      prev.disabled = idx === 0;
+      prev.onclick = () => { idx--; showWord(); };
+      const next = document.createElement('button'); next.className = 'kid-btn'; next.textContent = idx === words.length - 1 ? '✔ Готово' : '➡';
+      next.onclick = () => { if (idx === words.length - 1) { mode = 'themes'; showThemes(); } else { idx++; showWord(); } };
+      nav.appendChild(prev); nav.appendChild(next);
+      s.appendChild(nav);
+      const counter = document.createElement('div'); counter.className = 'counter';
+      counter.textContent = `${idx + 1} из ${words.length}`;
+      s.appendChild(counter);
+      play(w.audio_url || w.tts_url);
     }
 
-    const _lg = document.getElementById('logout'); if (_lg) _lg.onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
-
-    chooseTheme();
+    showThemes();
   </script>
 </body>
 </html>

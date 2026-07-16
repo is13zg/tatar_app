@@ -435,6 +435,67 @@ def with_sentence_audio(e: Optional[dict], target: dict) -> Optional[dict]:
     return e
 
 
+# ---- третья волна мини-игр (остаток отчёта геймдизайнера) ----
+
+def _brief(w: dict) -> dict:
+    return {"id": w["id"], "image_url": w["image_url"], "emoji": w["emoji"],
+            "audio_url": w["audio_url"], "text_tt": w["text_tt"]}
+
+
+def _distinct_voiced(pool: list[dict], n: int, exclude_tt: Optional[str] = None) -> Optional[list[dict]]:
+    cands = [w for w in pool if w["audio_url"] and w["text_tt"].lower() not in CATEGORY_TT
+             and (exclude_tt is None or not confusable(w["text_tt"], exclude_tt))]
+    seen: set[str] = set()
+    out: list[dict] = []
+    random.shuffle(cands)
+    for w in cands:
+        k = visual_key(w)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(w)
+        if len(out) == n:
+            return out
+    return None
+
+
+def ex_windows(pool: list[dict]) -> Optional[dict]:
+    """Окошки: 4 ставни открываются и озвучиваются, закрываются — «где X?»."""
+    quad = _distinct_voiced(pool, 4)
+    if not quad:
+        return None
+    target = random.choice(quad)
+    return {"type": "windows", "word_id": target["id"],
+            "items": [_brief(w) for w in quad]}
+
+
+def ex_flashlight(target: dict, pool: list[dict]) -> Optional[dict]:
+    """Фонарик: картинка в темноте, свети пальцем, потом выбери из 3, кто прятался."""
+    e = ex_pick_image(target, pool)
+    if not e:
+        return None
+    distractors = [o for o in e["options"] if o["id"] != target["id"]][:2]
+    options = distractors + [{"id": target["id"], "image_url": target["image_url"], "emoji": target["emoji"]}]
+    random.shuffle(options)
+    return {"type": "flashlight", "word_id": target["id"],
+            "target": _brief(target), "options": options}
+
+
+def ex_chain(pool: list[dict]) -> Optional[dict]:
+    """Повтори цепочку (Саймон): последовательность из 3 слов, повтори тапами."""
+    trio = _distinct_voiced(pool, 3)
+    if not trio:
+        return None
+    chain: list[int] = []
+    while len(chain) < 3:
+        c = random.randrange(3)
+        if chain and chain[-1] == c:
+            continue
+        chain.append(c)
+    return {"type": "chain", "word_id": trio[chain[0]]["id"],
+            "items": [_brief(w) for w in trio], "chain": chain}
+
+
 def ex_build_sentence(target: dict, pool: list[dict]) -> Optional[dict]:
     """Собери предложение из слов-плиток (с ловушками)."""
     from ..tts import cached_tts_url
@@ -595,8 +656,18 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                         break
             if built:
                 practice.append(built)
-        if allow_build and random.random() < 0.5:
-            e = ex_who_ran(pool)
+        # один «бонусный» формат за урок из доступных по уровню — разнообразие без раздувания длины
+        extra_gens = []
+        if sentences_ok:
+            extra_gens.append(lambda: ex_windows(pool))
+        if allow_build:
+            extra_gens.append(lambda: ex_who_ran(pool))
+            extra_gens.append(lambda: ex_flashlight(random.choice(new_words), pool))
+        if late_unit:
+            extra_gens.append(lambda: ex_chain(pool))
+        random.shuffle(extra_gens)
+        for gen in extra_gens[:1]:
+            e = gen()
             if e:
                 practice.append(e)
         voiced_new = [w for w in new_words if w["audio_url"]]
@@ -821,6 +892,10 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                 e = ex_moles(random.choice(pool), pool)
                 if e:
                     items.append(e)
+            if random.random() < 0.4:  # «цепочка» — слуховая память
+                e = ex_chain(pool)
+                if e:
+                    items.append(e)
         random.shuffle(items)
         items = _no_three_in_a_row(items)
     else:
@@ -861,6 +936,77 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         "is_boss": is_boss,
         "items": items,
     }
+
+
+def _practice_items(words: list[dict], pool: list[dict], limit: int = 10) -> list[dict]:
+    """Практика без карточек — для тренировки/трудных слов."""
+    random.shuffle(words)
+    items: list[dict] = []
+    for w in words[:limit]:
+        gens = [lambda: ex_pick_image(w, pool), lambda: ex_yes_no(w, pool),
+                lambda: ex_pick_word_audio(w, pool), lambda: ex_bubbles(w, pool),
+                lambda: ex_feed(w, pool)]
+        random.shuffle(gens)
+        for g in gens:
+            e = g()
+            if e:
+                items.append(e)
+                break
+    m = ex_memory(pool)
+    if m and items:
+        items.append(m)
+    random.shuffle(items)
+    return _no_three_in_a_row(items)
+
+
+@router.get("/review/mistakes")
+async def review_mistakes(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    """Тренировка трудных слов (по ошибкам ребёнка)."""
+    mistakes = (await db.execute(
+        select(UserMistake).where(UserMistake.user_id == user.id, UserMistake.count > 0)
+    )).scalars().all()
+    word_ids = [m.word_id for m in mistakes]
+    if not word_ids:
+        return {"title": "Трудные слова", "icon": "💪", "items": [], "empty": True}
+    words = (await db.execute(select(Word).where(Word.id.in_(word_ids)))).scalars().all()
+    dtos = [word_dto(w) for w in words]
+    # пул дистракторов — из тем этих слов
+    theme_ids = {w.theme_id for w in words}
+    pool_words = (await db.execute(select(Word).where(Word.theme_id.in_(theme_ids)))).scalars().all()
+    pool = [word_dto(w) for w in pool_words]
+    return {"title": "Трудные слова", "icon": "💪",
+            "items": _practice_items(dtos, pool, limit=8), "empty": False}
+
+
+@router.get("/review/{theme_id}")
+async def review_theme(
+    theme_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    """Свободная тренировка по пройденной теме (без влияния на карту)."""
+    theme = (await db.execute(select(Theme).where(Theme.id == theme_id))).scalar_one_or_none()
+    if not theme:
+        raise HTTPException(status_code=404, detail="Тема не найдена")
+    if not user.is_admin and theme_id not in await unlocked_theme_ids(db, user):
+        raise HTTPException(status_code=403, detail="Этот юнит ещё закрыт")
+    words = await unit_words(db, theme_id)
+    pool = [word_dto(w) for w in words]
+    if theme.title_ru in PHRASE_THEMES:
+        items = []
+        voiced = [w for w in pool if w["audio_url"]]
+        random.shuffle(voiced)
+        for w in voiced[:6]:
+            e = ex_pick_word_audio(w, pool)
+            if e:
+                items.append(e)
+        items = _no_three_in_a_row(items)
+    else:
+        items = _practice_items(list(pool), pool, limit=8)
+    return {"title": theme.title_ru, "icon": theme.icon_emoji or "💪", "items": items, "empty": not items}
 
 
 @router.get("/daily")

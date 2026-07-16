@@ -15,7 +15,9 @@
     const q = new URLSearchParams(location.search);
     const opts = q.get('daily')
       ? { daily: true, backUrl: '/static/pages/home.html' }
-      : { themeId: Number(q.get('theme')), lessonNo: Number(q.get('lesson') || 1), backUrl: '/static/pages/path.html' };
+      : q.get('review')
+        ? { review: q.get('review'), backUrl: '/static/pages/repeat.html' }
+        : { themeId: Number(q.get('theme')), lessonNo: Number(q.get('lesson') || 1), backUrl: '/static/pages/path.html' };
     Lesson.run(document.getElementById('root'), opts);
   </script>
 </body>

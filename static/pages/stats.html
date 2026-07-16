@@ -43,6 +43,39 @@
     if (!token()) location.href = '/static/pages/login.html';
     const _lg = document.getElementById('logout'); if (_lg) _lg.onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
 
+    // родительский гейт: страница со статистикой и «Выходом» — не для детских пальцев
+    if (sessionStorage.getItem('parent_ok') !== '1') {
+      const a = 3 + Math.floor(Math.random() * 6), b = 3 + Math.floor(Math.random() * 6);
+      const right = a * b;
+      const opts = [right, right + a, right - b].sort(() => Math.random() - 0.5);
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:linear-gradient(160deg,#fef6e4,#e0f2fe);display:grid;place-items:center;z-index:99;padding:20px;';
+      const box = document.createElement('div');
+      box.style.cssText = 'background:white;border-radius:24px;padding:26px;max-width:340px;width:100%;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.12);';
+      box.innerHTML = '<div style="font-size:44px;">🔒</div><div style="font-weight:800;font-size:19px;margin:8px 0;">Страница для родителей</div>' +
+        `<div style="font-size:17px;margin-bottom:14px;">Сколько будет <b>${a} × ${b}</b>?</div>`;
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:10px;justify-content:center;';
+      opts.forEach(v => {
+        const btn = document.createElement('button');
+        btn.textContent = v;
+        btn.style.cssText = 'flex:1;padding:14px;border:none;border-radius:14px;background:#ea580c;color:white;font-size:20px;font-weight:800;cursor:pointer;';
+        btn.onclick = () => {
+          if (v === right) { sessionStorage.setItem('parent_ok', '1'); ov.remove(); }
+          else location.href = '/static/pages/home.html';
+        };
+        row.appendChild(btn);
+      });
+      box.appendChild(row);
+      const back = document.createElement('button');
+      back.textContent = '⬅ Назад';
+      back.style.cssText = 'margin-top:12px;padding:10px 18px;border:none;border-radius:12px;background:#f1f5f9;font-size:15px;cursor:pointer;';
+      back.onclick = () => location.href = '/static/pages/home.html';
+      box.appendChild(back);
+      ov.appendChild(box);
+      document.addEventListener('DOMContentLoaded', () => document.body.appendChild(ov));
+    }
+
     async function api(path) {
       const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token() } });
       if (!res.ok) throw new Error(await res.text());

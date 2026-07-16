@@ -3,168 +3,70 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Повторение — TT-Learn Kids</title>
+  <title>Тренировка — TT-Learn Kids</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
+  <link rel="stylesheet" href="/static/kid.css" />
   <style>
-    :root { --maxw: 640px; }
-    body { font-family: system-ui, sans-serif; margin: 0; }
-    nav { display: flex; gap: 12px; padding: 12px; border-bottom: 1px solid #eee; }
-    nav a { text-decoration: none; color: #2563eb; }
-    .wrap { min-height: calc(100dvh - 50px); display: grid; place-items: center; padding: 16px; }
-    .card { width: 100%; max-width: var(--maxw); border: 1px solid #e5e7eb; padding: 16px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.04); }
-    .center { display: grid; justify-items: center; gap: 12px; text-align: center; }
-    select, button { padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #d1d5db; }
-    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; width: 100%; }
-    .tile { border: 1px solid #e5e7eb; border-radius: 12px; padding: 6px; display: grid; place-items: center; background: white; }
-    .img { width: 100%; max-width: 220px; aspect-ratio: 1/1; object-fit: cover; border-radius: 8px; }
-    .play { width: 48px; height: 48px; border-radius: 999px; border: 1px solid #d1d5db; display: grid; place-items: center; cursor: pointer; background: white; }
-    .play:after { content: ''; border-left: 12px solid #111; border-top: 8px solid transparent; border-bottom: 8px solid transparent; margin-left: 4px; }
-    .good { color: #16a34a; font-weight: 600; }
-    .bad { color: #ef4444; font-weight: 600; }
+    .theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .theme-card {
+      background: var(--card); border: none; border-radius: 20px; padding: 14px 8px;
+      box-shadow: var(--shadow); cursor: pointer; display: grid; gap: 4px; justify-items: center;
+    }
+    .theme-card .ic { font-size: 44px; line-height: 1.1; }
+    .theme-card .tt { font-weight: 800; font-size: 16px; text-align: center; }
+    .mistakes-card {
+      width: 100%; margin-bottom: 14px; background: linear-gradient(120deg, #8b5cf6, #6d28d9);
+      color: white; border: none; border-radius: 22px; padding: 16px; cursor: pointer;
+      display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 0 rgba(0,0,0,.12);
+      font-size: 20px; font-weight: 800; text-align: left;
+    }
+    .mistakes-card .big { font-size: 42px; }
+    .hint { text-align: center; color: #6b7280; font-size: 14px; margin: 10px 0; }
   </style>
 </head>
 <body>
-  <nav>
-    <a href="/static/pages/home.html">🏠 Главная</a>
-    <a href="/static/pages/study.html">Изучение</a>
-    <a href="/static/pages/repeat.html">Повторение</a>
-    <a href="/static/pages/mistakes.html">Работа над ошибками</a>
-    <a href="/static/pages/stats.html">Статистика</a>
-  </nav>
+  <div class="kid-wrap">
+    <div class="kid-top">
+      <button class="kid-back" onclick="location.href='/static/pages/home.html'">←</button>
+      <div class="kid-chip">💪 Тренировка</div>
+    </div>
 
-  <div class="wrap">
-    <div class="card">
-      <div id="screen" class="center"></div>
+    <button class="mistakes-card" onclick="location.href='/static/pages/lesson.html?review=mistakes'">
+      <span class="big">💪</span>
+      <span>Мои трудные слова<br /><small style="font-weight:600;opacity:.85;">потренируем то, где были ошибки</small></span>
+    </button>
+
+    <div class="hint">Или выбери тему для повторения:</div>
+    <div class="kid-card">
+      <div class="theme-grid" id="grid"></div>
     </div>
   </div>
 
-  <audio id="audio-word"></audio>
-  <audio id="audio-good" src="/static/sounds/success.mp3"></audio>
-  <audio id="audio-bad" src="/static/sounds/error.mp3"></audio>
-
   <script>
     function token() { return localStorage.getItem('token'); }
-    function authHeaders() { const t = token(); return t ? { 'Authorization': 'Bearer ' + t } : {}; }
     if (!token()) location.href = '/static/pages/login.html';
-
-    async function api(path, opts={}) {
-      const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(opts.headers||{}) } });
-      if (!res.ok) throw new Error(await res.text());
-      const ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) return res.json();
-      return res.text();
-    }
-
-    function tts(text) { /* отключено: браузерный голос читал татарский неверно */ }
-    function playWordAudio(url, fallbackText) {
-      const a = document.getElementById('audio-word');
-      try { a.pause(); a.currentTime = 0; } catch {}
-      if (url) { a.src = url; a.play().catch(() => { if (fallbackText) tts(fallbackText); }); }
-      else if (fallbackText) { tts(fallbackText); }
-    }
-
-    function playFx(ok) {
-      const good = document.getElementById('audio-good');
-      const bad = document.getElementById('audio-bad');
-      try { good.pause(); good.currentTime = 0; bad.pause(); bad.currentTime = 0; } catch {}
-      good.volume = 0.5; bad.volume = 0.5;
-      (ok ? good : bad).play().catch(() => {});
-    }
-
-    function playFxAsync(ok) {
-      return new Promise(resolve => {
-        const good = document.getElementById('audio-good');
-        const bad = document.getElementById('audio-bad');
-        try { good.pause(); good.currentTime = 0; bad.pause(); bad.currentTime = 0; } catch {}
-        good.volume = 0.5; bad.volume = 0.5;
-        const el = ok ? good : bad;
-        el.onended = () => { el.onended = null; resolve(); };
-        el.play().catch(() => resolve());
+    (async () => {
+      const res = await fetch('/lesson/path', { headers: { 'Authorization': 'Bearer ' + token() } });
+      if (res.status === 401) { location.href = '/static/pages/login.html'; return; }
+      const d = await res.json();
+      const grid = document.getElementById('grid');
+      const open = d.units.filter(u => u.state !== 'locked' || d.is_admin);
+      open.forEach(u => {
+        const c = document.createElement('button'); c.className = 'theme-card';
+        const ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = u.icon_emoji || '📚';
+        const tt = document.createElement('div'); tt.className = 'tt'; tt.textContent = u.title_ru;
+        c.appendChild(ic); c.appendChild(tt);
+        c.onclick = () => location.href = `/static/pages/lesson.html?review=${u.theme_id}`;
+        grid.appendChild(c);
       });
-    }
-
-    async function chooseTheme() {
-      const screen = document.getElementById('screen'); screen.innerHTML = '';
-      const themes = await api('/themes');
-      if (!themes.length) { screen.textContent = 'Нет тем'; return; }
-      const grid = document.createElement('div');
-      grid.style.display = 'grid'; grid.style.gridTemplateColumns = 'repeat(3, minmax(0,1fr))'; grid.style.gap = '12px';
-      themes.forEach(t => {
-        const card = document.createElement('button');
-        card.style.border = '1px solid #e5e7eb'; card.style.borderRadius = '12px'; card.style.padding = '8px'; card.style.display = 'grid'; card.style.gap = '6px';
-        let img;
-        if (t.sample_image_url && !t.sample_image_url.includes('noimg')) {
-          img = document.createElement('img'); img.src = t.sample_image_url; img.style.width='100%'; img.style.aspectRatio='1/1'; img.style.objectFit='cover'; img.style.borderRadius='8px';
-        } else {
-          img = document.createElement('div'); img.textContent = t.icon_emoji || '📚';
-          img.style.cssText = 'width:100%;aspect-ratio:1/1;display:grid;place-items:center;font-size:64px;background:#fff7ed;border-radius:8px;';
-        }
-        const title = document.createElement('div'); title.textContent = t.title_ru; title.style.fontWeight = '600';
-        const desc = document.createElement('div'); desc.textContent = t.description || ''; desc.style.fontSize = '14px'; desc.style.color = '#6b7280';
-        card.onclick = () => startRepeat(t.id);
-        card.appendChild(img); card.appendChild(title); card.appendChild(desc);
-        grid.appendChild(card);
-      });
-      screen.appendChild(grid);
-    }
-
-    async function startRepeat(themeId) {
-      const quiz = await api(`/modes/repeat/${themeId}`);
-      let idx = 0, good = 0, bad = 0, locked = false;
-
-      const next = () => {
-        if (idx >= quiz.length) { return showResult(); }
-        const item = quiz[idx++];
-        renderQuestion(item);
-      };
-
-      function showResult() {
-        const screen = document.getElementById('screen'); screen.innerHTML = '';
-        const res = document.createElement('div'); res.innerHTML = `Верно: <span class="good">${good}</span> · Ошибок: <span class="bad">${bad}</span>`;
-        const again = document.createElement('button'); again.textContent = 'Повторить заново'; again.onclick = () => startRepeat(themeId);
-        screen.appendChild(res); screen.appendChild(again);
+      if (!open.length) {
+        grid.innerHTML = '';
+        const msg = document.createElement('div');
+        msg.style.cssText = 'grid-column:1/-1;text-align:center;color:#6b7280;font-weight:700;padding:16px;';
+        msg.textContent = 'Сначала пройди первый урок на карте!';
+        grid.appendChild(msg);
       }
-
-      function renderQuestion(item) {
-        const screen = document.getElementById('screen'); screen.innerHTML = '';
-        const tt = document.createElement('div'); tt.style.fontSize = '22px'; tt.style.fontWeight = '700'; tt.textContent = item.text_tt;
-        const play = document.createElement('div'); play.className = 'play'; play.title = 'Произнести'; play.onclick = () => playWordAudio(item.audio_url, item.text_tt);
-        const grid = document.createElement('div'); grid.className = 'grid';
-        item.options.forEach(opt => {
-          const tile = document.createElement('button'); tile.className = 'tile';
-          if (opt.image_url && !opt.image_url.includes('noimg')) {
-            const img = document.createElement('img'); img.className = 'img'; img.src = opt.image_url;
-            tile.appendChild(img);
-          } else {
-            const em = document.createElement('div'); em.textContent = opt.emoji || '❓';
-            em.style.cssText = 'font-size:72px;line-height:1;display:grid;place-items:center;aspect-ratio:1/1;';
-            tile.appendChild(em);
-          }
-          tile.onclick = async () => {
-            if (locked) return; locked = true;
-            const correct = String(opt.id) === String(item.word_id);
-            try { await api('/modes/answer', { method: 'POST', body: JSON.stringify({ word_id: item.word_id, is_correct: correct }) }); } catch (e) {}
-            if (correct) good++; else bad++;
-            const fb = document.createElement('div');
-            fb.className = correct ? 'good' : 'bad';
-            fb.textContent = correct ? 'Дөрес' : 'Хата';
-            screen.appendChild(fb);
-            await playFxAsync(correct);
-            locked = false; next();
-          };
-          grid.appendChild(tile);
-        });
-        screen.appendChild(tt); screen.appendChild(play); screen.appendChild(grid);
-        // auto play word when question appears
-        playWordAudio(item.audio_url, item.text_tt);
-      }
-
-      next();
-    }
-
-    const _lg = document.getElementById('logout'); if (_lg) _lg.onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
-
-    chooseTheme();
+    })();
   </script>
 </body>
 </html>

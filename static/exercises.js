@@ -44,6 +44,9 @@
     'Запомни, кто здесь!': 'zapomni_kto',
     'Кто убежал? Найди!': 'kto_ubezhal',
     'Лови только то, что я называю!': 'lovi_tolko',
+    'Открывай окошки и запоминай!': 'otkryvaj_okoshki',
+    'Посвети! Кто прячется в темноте?': 'posveti_fonarikom',
+    'Повтори цепочку!': 'povtori_cepochku',
     'Послушай и найди картинку': 'najdi_kartinku',
     'Это правильная картинка?': 'pravilnaya_kartinka',
     'Найди пары': 'najdi_pary',
@@ -587,6 +590,164 @@
     })();
   }
 
+  // ---- третья волна мини-игр ----
+
+  function rWindows(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🪟 Открывай окошки и запоминай!'));
+    const grid = el('div', 'tile-grid'); screen.appendChild(grid);
+    const target = item.items.find(w => w.id === item.word_id);
+    let phase = 'expo'; // expo → recall
+    let locked = false;
+    const cells = item.items.map(w => {
+      const c = el('button', 'tile windows-cell');
+      const v = visual(w);
+      const cover = el('div', 'shutter', '🪟');
+      c.appendChild(v); c.appendChild(cover);
+      c.onclick = async () => {
+        if (locked) return;
+        if (phase === 'expo') {
+          if (!cover.classList.contains('shutter-open')) {
+            cover.classList.add('shutter-open');
+            await playAudio(w.audio_url);
+            if (cells.every(x => x.cover.classList.contains('shutter-open'))) {
+              // всё открыто и услышано — закрываем и спрашиваем
+              locked = true;
+              await sleep(700);
+              cells.forEach(x => x.cover.classList.remove('shutter-open'));
+              await sleep(500);
+              const instr = screen.querySelector('.instr');
+              if (instr) instr.textContent = '🔍 Где это слово? Слушай!';
+              await playAudio(target.audio_url);
+              phase = 'recall';
+              locked = false;
+            }
+          }
+          return;
+        }
+        // recall: тап по окну = ответ
+        locked = true;
+        const ok = w.id === item.word_id;
+        reportAnswer(item.word_id, ok, 'windows');
+        cover.classList.add('shutter-open');
+        c.classList.add(ok ? 'good' : 'bad');
+        if (!ok) {
+          cells.forEach(x => { if (x.w.id === item.word_id) { x.cover.classList.add('shutter-open'); x.c.classList.add('good'); } });
+        }
+        feedback(ok); await playFx(ok);
+        await playAudio(target.audio_url);
+        done({ scored: true, ok });
+      };
+      grid.appendChild(c);
+      return { c, cover, w };
+    });
+    speakRu('Открывай окошки и запоминай!');
+  }
+
+  function rFlashlight(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🔦 Посвети! Кто прячется в темноте?'));
+    const stage = el('div', 'flash-stage');
+    const v = visual(item.target);
+    stage.appendChild(v);
+    const dark = el('div', 'flash-dark');
+    stage.appendChild(dark);
+    screen.appendChild(stage);
+    let moves = 0;
+    const setLight = (e) => {
+      const r = stage.getBoundingClientRect();
+      const x = ((e.touches ? e.touches[0].clientX : e.clientX) - r.left);
+      const y = ((e.touches ? e.touches[0].clientY : e.clientY) - r.top);
+      dark.style.background = `radial-gradient(circle 64px at ${x}px ${y}px, rgba(0,0,0,0) 0, rgba(15,23,42,0.55) 55px, rgba(15,23,42,0.97) 90px)`;
+      moves++;
+      if (moves === 24) showOptions(); // поисследовал — пора отвечать
+    };
+    dark.addEventListener('pointermove', setLight);
+    dark.addEventListener('pointerdown', setLight);
+    let shown = false;
+    function showOptions() {
+      if (shown) return; shown = true;
+      const grid = el('div', 'tile-grid'); grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+      screen.appendChild(grid);
+      let locked = false;
+      shuffled(item.options).forEach(opt => {
+        const t = el('button', 'tile');
+        t.appendChild(visual(opt));
+        t.onclick = async () => {
+          if (locked) return; locked = true;
+          const ok = opt.id === item.word_id;
+          reportAnswer(item.word_id, ok, 'flashlight');
+          t.classList.add(ok ? 'good' : 'bad');
+          dark.style.transition = 'opacity .6s';
+          dark.style.opacity = '0'; // свет включается
+          if (!ok) [...grid.children].forEach(c => { if (c._id === item.word_id) c.classList.add('good'); });
+          feedback(ok); await playFx(ok);
+          await playAudio(item.target.audio_url);
+          done({ scored: true, ok });
+        };
+        t._id = opt.id;
+        grid.appendChild(t);
+      });
+      grid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    setTimeout(showOptions, 9000); // страховка: варианты появятся сами
+    speakRu('Посвети! Кто прячется в темноте?');
+  }
+
+  function rChain(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🎶 Повтори цепочку!'));
+    const grid = el('div', 'tile-grid'); grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    screen.appendChild(grid);
+    const tiles = item.items.map(w => {
+      const t = el('button', 'tile');
+      t.appendChild(visual(w));
+      grid.appendChild(t);
+      return { t, w };
+    });
+    let expecting = 0, tries = 0, playing = true, locked = false;
+    async function playChain() {
+      playing = true;
+      await sleep(500);
+      for (const idx of item.chain) {
+        const { t, w } = tiles[idx];
+        t.style.outline = '6px solid #fbbf24';
+        await playAudio(w.audio_url);
+        t.style.outline = 'none';
+        await sleep(200);
+      }
+      playing = false;
+    }
+    tiles.forEach(({ t, w }, i) => {
+      t.onclick = async () => {
+        if (playing || locked) return;
+        playAudio(w.audio_url);
+        if (i === item.chain[expecting]) {
+          t.classList.add('good'); setTimeout(() => t.classList.remove('good'), 350);
+          expecting++;
+          if (expecting === item.chain.length) {
+            locked = true;
+            const ok = tries === 0;
+            reportAnswer(item.word_id, ok, 'chain');
+            feedback(true); await playFx(true); await sleep(300);
+            done({ scored: true, ok });
+          }
+        } else {
+          t.classList.add('bad'); setTimeout(() => t.classList.remove('bad'), 350);
+          tries++;
+          expecting = 0;
+          if (tries >= 2) {
+            locked = true;
+            reportAnswer(item.word_id, false, 'chain');
+            feedback(false); await playFx(false); await sleep(300);
+            done({ scored: true, ok: false });
+          } else {
+            await playFx(false);
+            playChain(); // ещё раз показываем цепочку
+          }
+        }
+      };
+    });
+    (async () => { await speakRu('Повтори цепочку!'); playChain(); })();
+  }
+
   function rBuildSentence(item, screen, done) {
     screen.appendChild(el('div', 'instr', '🧱 Собери предложение из слов'));
     const vis = el('div', 'big-visual'); vis.appendChild(visual(item)); screen.appendChild(vis);
@@ -1019,6 +1180,9 @@
     feed: rFeed,
     who_ran: rWhoRan,
     moles: rMoles,
+    windows: rWindows,
+    flashlight: rFlashlight,
+    chain: rChain,
   };
 
   // ---------- раннер ----------
@@ -1057,7 +1221,9 @@
     try {
       data = opts.daily
         ? await api('/lesson/daily')
-        : await api(`/lesson/unit/${opts.themeId}/${opts.lessonNo}`);
+        : opts.review
+          ? await api(`/lesson/review/${opts.review}`)
+          : await api(`/lesson/unit/${opts.themeId}/${opts.lessonNo}`);
     } catch (e) {
       let msg = 'Ой! Не получилось загрузить урок 😔';
       try { const d = JSON.parse(e.message); if (d.detail) msg = d.detail; } catch (err) {}
@@ -1083,6 +1249,17 @@
       home.style.marginTop = '10px';
       home.onclick = () => location.href = '/static/pages/home.html';
       screen.appendChild(map); screen.appendChild(home);
+      return;
+    }
+
+    if (opts.review && data.empty) {
+      screen.appendChild(el('div', 'sticker-award', '🎉'));
+      screen.appendChild(el('div', 'word-big', 'Трудных слов нет — ты молодец!'));
+      const back2 = el('button', 'kid-btn', '⬅ Назад');
+      back2.style.marginTop = '14px';
+      back2.onclick = () => location.href = opts.backUrl || '/static/pages/home.html';
+      screen.appendChild(back2);
+      speakRuBrowser('Трудных слов нет! Молодец!');
       return;
     }
 
@@ -1147,14 +1324,20 @@
     }
 
     async function finish() {
-      const payload = {
-        kind: opts.daily ? 'daily' : 'unit',
-        theme_id: opts.themeId || null,
-        lesson_no: opts.lessonNo || null,
-        correct, total,
-      };
-      const result = (await reportComplete(payload)) || { stars: stars_estimate(), sticker: null, streak: 0 };
-      function stars_estimate() { return total > 0 && correct / total >= 0.9 ? 3 : (total > 0 && correct / total >= 0.7 ? 2 : 1); }
+      function stars_estimate() { return total > 0 && correct / total >= 0.85 ? 3 : (total > 0 && correct / total >= 0.65 ? 2 : 1); }
+      let result;
+      if (opts.review) {
+        // тренировка — не влияет на карту/звёзды, только SRS-ответы уже записаны
+        result = { stars: stars_estimate(), sticker: null, streak: 0 };
+      } else {
+        const payload = {
+          kind: opts.daily ? 'daily' : 'unit',
+          theme_id: opts.themeId || null,
+          lesson_no: opts.lessonNo || null,
+          correct, total,
+        };
+        result = (await reportComplete(payload)) || { stars: stars_estimate(), sticker: null, streak: 0 };
+      }
       screen.innerHTML = '';
       confetti();
       // сначала фанфары, потом голос — не одновременно
