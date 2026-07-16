@@ -30,13 +30,34 @@
     .count { color: #6b7280; font-size: 14px; margin: 8px 0; }
     .flash { animation: flash 1s; }
     @keyframes flash { 0% { background: #dcfce7; } 100% { background: white; } }
+    .tsel { position: relative; }
+    .tsel > button { background: white; border: 1px solid #d1d5db; font-size: 15px; }
+    .tsel-panel {
+      position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; background: white;
+      border: 1px solid #d1d5db; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
+      padding: 8px; width: 280px; max-height: 60vh; overflow-y: auto;
+    }
+    .tsel-tools { display: flex; gap: 6px; margin-bottom: 6px; position: sticky; top: 0; background: white; padding-bottom: 4px; }
+    .tsel-tools button { flex: 1; font-size: 13px; padding: 6px; }
+    .tsel-panel label { display: flex; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .tsel-panel label:hover { background: #f1f5f9; }
+    .thm { font-size: 12px; color: #94a3b8; }
   </style>
 </head>
 <body>
   <header>
     <a href="/static/pages/admin.html">← Админка</a>
     <h1>🔎 Проверка слов</h1>
-    <select id="theme"></select>
+    <div class="tsel">
+      <button id="theme-btn">📚 Темы</button>
+      <div class="tsel-panel" id="theme-panel" hidden>
+        <div class="tsel-tools">
+          <button id="t-all">✅ Все</button>
+          <button id="t-none">⬜ Ничего</button>
+        </div>
+        <div id="theme-list"></div>
+      </div>
+    </div>
     <input id="search" type="search" placeholder="Поиск: слово или перевод" />
     <select id="filter">
       <option value="">Все слова</option>
@@ -106,14 +127,26 @@
         row.dataset.wid = w.id;
 
         const thumb = document.createElement('div'); thumb.className = 'thumb';
-        if (hasImg) { const img = document.createElement('img'); img.src = w.image_url + '?v=' + Date.now(); thumb.appendChild(img); }
+        if (hasImg) {
+          const img = document.createElement('img'); img.src = w.image_url + '?v=' + Date.now();
+          thumb.appendChild(img);
+          thumb.style.cursor = 'zoom-in';
+          thumb.title = 'Увеличить';
+          thumb.onclick = () => zoomImage(img.src, `${w.text_tt} — ${w.text_ru}`);
+        }
         else thumb.textContent = w.emoji || '❓';
         row.appendChild(thumb);
 
         const wt = document.createElement('div'); wt.className = 'wtext';
         const tt = document.createElement('div'); tt.className = 'tt'; tt.textContent = w.text_tt;
         const ru = document.createElement('div'); ru.className = 'ru'; ru.textContent = w.text_ru;
-        wt.appendChild(tt); wt.appendChild(ru); row.appendChild(wt);
+        wt.appendChild(tt); wt.appendChild(ru);
+        if (selectedThemes.size > 1 && w._theme) {
+          const th = document.createElement('div'); th.className = 'thm';
+          th.textContent = `${w._theme.icon_emoji || ''} ${w._theme.title_ru}`;
+          wt.appendChild(th);
+        }
+        row.appendChild(wt);
 
         const badge = document.createElement('span');
         badge.className = 'badge' + (isRec ? ' rec' : '');
@@ -371,21 +404,82 @@
       rec.start();
     }
 
+    // ---------- увеличение картинки по клику ----------
+    function zoomImage(url, caption) {
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.85);display:grid;place-items:center;z-index:50;cursor:zoom-out;padding:16px;';
+      const box = document.createElement('div');
+      box.style.cssText = 'text-align:center;max-width:100%;';
+      const img = document.createElement('img');
+      img.src = url;
+      img.style.cssText = 'max-width:min(92vw,720px);max-height:80vh;border-radius:16px;background:white;box-shadow:0 12px 40px rgba(0,0,0,.4);';
+      const cap = document.createElement('div');
+      cap.textContent = caption;
+      cap.style.cssText = 'color:white;font-size:20px;font-weight:700;margin-top:12px;';
+      box.appendChild(img); box.appendChild(cap); ov.appendChild(box);
+      const close = () => { ov.remove(); document.removeEventListener('keydown', esc); };
+      const esc = e => { if (e.key === 'Escape') close(); };
+      ov.onclick = close;
+      document.addEventListener('keydown', esc);
+      document.body.appendChild(ov);
+    }
+
+    // ---------- мультивыбор тем ----------
+    const wordsByTheme = {};
+    let selectedThemes = new Set();
+
+    function themeBtnText() {
+      const n = selectedThemes.size;
+      return n === themes.length ? `📚 Все темы (${n})` : `📚 Тем: ${n} из ${themes.length}`;
+    }
+
     async function loadWords() {
-      const themeId = document.getElementById('theme').value;
-      words = await api(`/themes/${themeId}/words`);
+      document.getElementById('theme-btn').textContent = themeBtnText();
+      const missing = [...selectedThemes].filter(id => !wordsByTheme[id]);
+      await Promise.all(missing.map(async id => { wordsByTheme[id] = await api(`/themes/${id}/words`); }));
+      words = [];
+      themes.forEach(t => {
+        if (!selectedThemes.has(t.id)) return;
+        (wordsByTheme[t.id] || []).forEach(w => { w._theme = t; words.push(w); });
+      });
       render();
+    }
+
+    function buildThemePicker() {
+      const panel = document.getElementById('theme-panel');
+      const list = document.getElementById('theme-list');
+      const btn = document.getElementById('theme-btn');
+      const boxes = [];
+      themes.forEach(t => {
+        const lab = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = selectedThemes.has(t.id);
+        cb.onchange = () => {
+          if (cb.checked) selectedThemes.add(t.id); else selectedThemes.delete(t.id);
+          loadWords();
+        };
+        boxes.push({ cb, id: t.id });
+        lab.appendChild(cb);
+        lab.appendChild(document.createTextNode(`${t.icon_emoji || ''} ${t.title_ru}`));
+        list.appendChild(lab);
+      });
+      const setAll = on => {
+        selectedThemes = new Set(on ? themes.map(t => t.id) : []);
+        boxes.forEach(b => { b.cb.checked = on; });
+        loadWords();
+      };
+      document.getElementById('t-all').onclick = () => setAll(true);
+      document.getElementById('t-none').onclick = () => setAll(false);
+      btn.onclick = () => { panel.hidden = !panel.hidden; };
+      document.addEventListener('click', e => {
+        if (!panel.hidden && !e.target.closest('.tsel')) panel.hidden = true;
+      });
     }
 
     (async () => {
       themes = await api('/themes');
-      const sel = document.getElementById('theme');
-      themes.forEach(t => {
-        const o = document.createElement('option');
-        o.value = t.id; o.textContent = `${t.icon_emoji || ''} ${t.title_ru}`;
-        sel.appendChild(o);
-      });
-      sel.onchange = loadWords;
+      selectedThemes = new Set(themes.map(t => t.id)); // по умолчанию — все темы
+      buildThemePicker();
       document.getElementById('search').oninput = render;
       document.getElementById('filter').onchange = render;
       if (themes.length) await loadWords();
