@@ -77,7 +77,13 @@
       themes.forEach(t => {
         const card = document.createElement('button');
         card.style.border = '1px solid #e5e7eb'; card.style.borderRadius = '12px'; card.style.padding = '8px'; card.style.display = 'grid'; card.style.gap = '6px';
-        const img = document.createElement('img'); img.src = t.sample_image_url || '/static/noimg.png'; img.style.width='100%'; img.style.aspectRatio='1/1'; img.style.objectFit='cover'; img.style.borderRadius='8px';
+        let img;
+        if (t.sample_image_url && !t.sample_image_url.includes('noimg')) {
+          img = document.createElement('img'); img.src = t.sample_image_url; img.style.width='100%'; img.style.aspectRatio='1/1'; img.style.objectFit='cover'; img.style.borderRadius='8px';
+        } else {
+          img = document.createElement('div'); img.textContent = t.icon_emoji || '📚';
+          img.style.cssText = 'width:100%;aspect-ratio:1/1;display:grid;place-items:center;font-size:64px;background:#fff7ed;border-radius:8px;';
+        }
         const title = document.createElement('div'); title.textContent = t.title_ru; title.style.fontWeight = '600';
         const desc = document.createElement('div'); desc.textContent = t.description || ''; desc.style.fontSize = '14px'; desc.style.color = '#6b7280';
         card.onclick = () => startStudy(t.id);
@@ -98,16 +104,22 @@
       function renderWord(w) {
         const screen = document.getElementById('screen'); screen.innerHTML = '';
         const ru = document.createElement('div'); ru.className = 'title-ru'; ru.textContent = w.text_ru;
-        const img = document.createElement('img'); img.className = 'img'; img.src = w.image_url || '/static/noimg.png'; img.alt = w.text_ru;
+        let img;
+        if (w.image_url && !w.image_url.includes('noimg')) {
+          img = document.createElement('img'); img.className = 'img'; img.src = w.image_url; img.alt = w.text_ru;
+        } else {
+          img = document.createElement('div'); img.textContent = w.emoji || '❓';
+          img.style.cssText = 'font-size:110px;line-height:1.2;text-align:center;';
+        }
         const tt = document.createElement('div'); tt.className = 'title-tt'; tt.textContent = w.text_tt;
         const controls = document.createElement('div'); controls.className = 'controls';
-        const playBtn = document.createElement('div'); playBtn.className = 'play'; playBtn.title = 'Произнести'; playBtn.onclick = () => playWordAudio(w.audio_url, w.text_tt);
+        const playBtn = document.createElement('div'); playBtn.className = 'play'; playBtn.title = 'Произнести'; playBtn.onclick = () => playWordAudio(w.audio_url || w.tts_url, w.text_tt);
         const ok = document.createElement('button'); ok.className = 'ok'; ok.textContent = 'Өйрәндем';
         let pressed = false; ok.onclick = () => { if (pressed) return; pressed = true; next(); };
         controls.appendChild(playBtn); controls.appendChild(ok);
         screen.appendChild(ru); screen.appendChild(img); screen.appendChild(tt); screen.appendChild(controls);
         // auto play on show
-        playWordAudio(w.audio_url, w.text_tt);
+        playWordAudio(w.audio_url || w.tts_url, w.text_tt);
       }
       next();
     }

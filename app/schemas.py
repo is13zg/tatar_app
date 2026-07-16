@@ -41,6 +41,8 @@ class ThemeOut(BaseModel):
     title_ru: str
     description: Optional[str] = None
     sample_image_url: Optional[str] = None
+    icon_emoji: Optional[str] = None
+    title_tt: Optional[str] = None
 
 
 class WordOut(BaseModel):

@@ -33,6 +33,12 @@ PROMPT_EN = (
     "single subject centered, plain light background, bright saturated colors, "
     "friendly cartoon style, no text, no letters"
 )
+# для Cloudflare flux-schnell: без слова «book» (рисует подписи) и с усиленным запретом текста
+PROMPT_EN_CF = (
+    "cute flat illustration for a children's app: {en}. "
+    "single subject centered, plain white background, bright saturated colors, "
+    "kawaii cartoon style, absolutely no text, no letters, no words, no captions"
+)
 PROMPT_RU_FALLBACK = (
     "Яркая плоская иллюстрация для детской обучающей игры: {ru}. "
     "Один крупный объект по центру, простой светлый фон, добрый стиль детской книги, "
@@ -197,6 +203,48 @@ def words_without_images(app: str, headers: dict, theme_filter: int | None, redo
     return result
 
 
+# ---------- Cloudflare Workers AI (flux-1-schnell, бесплатный лимит) ----------
+
+def _load_cf_env() -> None:
+    p = Path(__file__).resolve().parent.parent / "cf.env"
+    if p.exists():
+        for line in p.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.strip().startswith("#"):
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+class CloudflareAI:
+    def __init__(self) -> None:
+        _load_cf_env()
+        token = os.getenv("CF_API_TOKEN")
+        acct = os.getenv("CF_ACCOUNT_ID")
+        if not token or not acct:
+            sys.exit("Нужны CF_API_TOKEN и CF_ACCOUNT_ID (env или cf.env в корне проекта)")
+        self.url = f"https://api.cloudflare.com/client/v4/accounts/{acct}/ai/run/@cf/black-forest-labs/flux-1-schnell"
+        self.headers = {"Authorization": f"Bearer {token}"}
+        self.client = httpx.Client(timeout=120)
+
+    def generate(self, prompt: str, seed: int | None = None) -> bytes:
+        body = {"prompt": prompt, "steps": 8}
+        if seed is not None:
+            body["seed"] = seed
+        last_err = None
+        for attempt in range(4):
+            try:
+                r = self.client.post(self.url, headers=self.headers, json=body)
+                if r.status_code == 429:
+                    time.sleep(15 * (attempt + 1))
+                    last_err = RuntimeError("429")
+                    continue
+                r.raise_for_status()
+                return base64.b64decode(r.json()["result"]["image"])
+            except Exception as e:
+                last_err = e
+                time.sleep(5 * (attempt + 1))
+        raise RuntimeError(f"Cloudflare AI не ответил: {last_err}")
+
+
 # ---------- Pollinations (flux, без ключа) ----------
 
 class Pollinations:
@@ -290,7 +338,9 @@ def main() -> None:
     ap.add_argument("--app", default="http://127.0.0.1:8001")
     ap.add_argument("--user", default="admin")
     ap.add_argument("--password", required=True)
-    ap.add_argument("--provider", choices=["pollinations", "fusionbrain", "openai"], default="pollinations")
+    ap.add_argument("--provider", choices=["pollinations", "cloudflare", "fusionbrain", "openai"], default="pollinations")
+    ap.add_argument("--variants", type=int, default=0, help="в regen-режиме: сгенерировать N вариантов в --save-dir вместо загрузки")
+    ap.add_argument("--save-dir", help="куда класть варианты (regen + --variants)")
     ap.add_argument("--theme", type=int, help="только одна тема (id)")
     ap.add_argument("--limit", type=int, default=1000)
     ap.add_argument("--delay", type=float, default=1.0, help="пауза между генерациями, сек")
@@ -303,7 +353,28 @@ def main() -> None:
 
     if args.regen_file:
         plan = json.loads(Path(args.regen_file).read_text(encoding="utf-8"))
-        provider = {"pollinations": Pollinations, "fusionbrain": FusionBrain, "openai": OpenAIImages}[args.provider]()
+        provider = {"pollinations": Pollinations, "cloudflare": CloudflareAI,
+                    "fusionbrain": FusionBrain, "openai": OpenAIImages}[args.provider]()
+
+        if args.variants:  # N вариантов в папку, выбор лучшего — глазами
+            outdir = Path(args.save_dir or "variants")
+            outdir.mkdir(parents=True, exist_ok=True)
+            for i, item in enumerate(plan, 1):
+                tpl = PROMPT_EN_CF if isinstance(provider, CloudflareAI) else PROMPT_EN
+                prompt = tpl.format(en=item["prompt"])
+                for v in range(args.variants):
+                    try:
+                        if isinstance(provider, CloudflareAI):
+                            png = provider.generate(prompt, seed=1000 + v * 137)
+                        else:
+                            png = provider.generate(prompt)
+                        (outdir / f"word_{item['id']}_v{v + 1}.png").write_bytes(png)
+                        print(f"[{i}/{len(plan)}] v{v + 1} ✅ id={item['id']}")
+                    except Exception as e:
+                        print(f"[{i}/{len(plan)}] v{v + 1} ❌ id={item['id']}: {e}")
+                    time.sleep(args.delay)
+            return
+
         ok, fail = 0, 0
         for i, item in enumerate(plan, 1):
             prompt = PROMPT_EN.format(en=item["prompt"])

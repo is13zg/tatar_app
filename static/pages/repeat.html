@@ -92,7 +92,13 @@
       themes.forEach(t => {
         const card = document.createElement('button');
         card.style.border = '1px solid #e5e7eb'; card.style.borderRadius = '12px'; card.style.padding = '8px'; card.style.display = 'grid'; card.style.gap = '6px';
-        const img = document.createElement('img'); img.src = t.sample_image_url || '/static/noimg.png'; img.style.width='100%'; img.style.aspectRatio='1/1'; img.style.objectFit='cover'; img.style.borderRadius='8px';
+        let img;
+        if (t.sample_image_url && !t.sample_image_url.includes('noimg')) {
+          img = document.createElement('img'); img.src = t.sample_image_url; img.style.width='100%'; img.style.aspectRatio='1/1'; img.style.objectFit='cover'; img.style.borderRadius='8px';
+        } else {
+          img = document.createElement('div'); img.textContent = t.icon_emoji || '📚';
+          img.style.cssText = 'width:100%;aspect-ratio:1/1;display:grid;place-items:center;font-size:64px;background:#fff7ed;border-radius:8px;';
+        }
         const title = document.createElement('div'); title.textContent = t.title_ru; title.style.fontWeight = '600';
         const desc = document.createElement('div'); desc.textContent = t.description || ''; desc.style.fontSize = '14px'; desc.style.color = '#6b7280';
         card.onclick = () => startRepeat(t.id);
