@@ -271,18 +271,47 @@ async def import_units(
 @router.post("/tts_word/{word_id}")
 async def tts_word(
     word_id: int,
+    voice: str = "alsu",
     db: Annotated[AsyncSession, Depends(get_db)] = None,
     admin = Depends(get_current_admin),
 ):
+    if voice not in ("alsu", "almaz"):
+        raise HTTPException(status_code=400, detail="voice: alsu или almaz")
     word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
     if not word:
         raise HTTPException(status_code=404, detail="Слово не найдено")
     try:
-        word.tts_url = await synthesize_to_file(word.text_tt)
+        word.tts_url = await synthesize_to_file(word.text_tt, speaker=voice)
+        word.audio_url = None  # свежая озвучка главнее старой записи
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Ошибка TTS: {e}")
     await db.commit()
     return {"word_id": word.id, "tts_url": word.tts_url}
+
+
+@router.post("/word_audio/{word_id}")
+async def word_audio(
+    word_id: int,
+    file: UploadFile = File(...),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Загрузка собственной записи слова (заменяет и запись, и TTS)."""
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word:
+        raise HTTPException(status_code=404, detail="Слово не найдено")
+    ext = (file.filename or 'a.wav').rsplit('.', 1)[-1].lower()
+    if ext not in ('wav', 'mp3', 'ogg', 'webm', 'm4a'):
+        raise HTTPException(status_code=400, detail="Ожидается аудио (wav/mp3/ogg/webm/m4a)")
+    from pathlib import Path
+    from ..config import STATIC_DIR
+    target_dir = Path(STATIC_DIR) / 'voice' / 'uploads'
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"word_{word.id}.{ext}"
+    target.write_bytes(await file.read())
+    word.audio_url = f"/static/voice/uploads/{target.name}"
+    await db.commit()
+    return {"word_id": word.id, "audio_url": word.audio_url}
 
 
 @router.post("/tts_all")

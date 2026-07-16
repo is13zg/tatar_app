@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Проверка слов — TT-Learn Kids</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f8fafc; }
+    header { display: flex; gap: 12px; align-items: center; padding: 12px 16px; background: white; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 10; flex-wrap: wrap; }
+    header a { color: #2563eb; text-decoration: none; }
+    h1 { font-size: 18px; margin: 0; }
+    select, input[type="search"] { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 12px; }
+    .row { display: flex; gap: 12px; align-items: center; background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; flex-wrap: wrap; }
+    .thumb { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; background: #fff7ed; display: grid; place-items: center; font-size: 44px; flex: none; overflow: hidden; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .wtext { min-width: 160px; flex: 1; }
+    .tt { font-size: 20px; font-weight: 700; }
+    .ru { color: #6b7280; font-size: 14px; }
+    .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #4338ca; white-space: nowrap; }
+    .badge.rec { background: #fef3c7; color: #92400e; }
+    button { padding: 8px 12px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; background: #e2e8f0; }
+    button.play { background: #8b5cf6; color: white; font-size: 18px; width: 44px; height: 44px; border-radius: 50%; flex: none; }
+    button.voice { background: #ecfdf5; color: #065f46; }
+    button:disabled { opacity: .5; }
+    label.up { padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; background: #e2e8f0; }
+    label.up input { display: none; }
+    .actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .count { color: #6b7280; font-size: 14px; margin: 8px 0; }
+    .flash { animation: flash 1s; }
+    @keyframes flash { 0% { background: #dcfce7; } 100% { background: white; } }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/static/pages/admin.html">← Админка</a>
+    <h1>🔎 Проверка слов</h1>
+    <select id="theme"></select>
+    <input id="search" type="search" placeholder="Поиск: слово или перевод" />
+    <select id="filter">
+      <option value="">Все слова</option>
+      <option value="noimg">Без картинки</option>
+      <option value="rec">Своя запись 🎙</option>
+      <option value="tts">Озвучка TTS 🤖</option>
+    </select>
+  </header>
+
+  <div class="wrap">
+    <div class="count" id="count"></div>
+    <div id="list"></div>
+  </div>
+
+  <audio id="player"></audio>
+  <script>
+    function token() { return localStorage.getItem('token'); }
+    if (!token()) location.href = '/static/pages/login.html';
+    fetch('/auth/me', { headers: { 'Authorization': 'Bearer ' + token() } })
+      .then(r => r.ok ? r.json() : null)
+      .then(me => { if (!me || !me.is_admin) location.href = '/static/pages/home.html'; })
+      .catch(() => {});
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, { ...opts, headers: { 'Authorization': 'Bearer ' + token(), ...(opts.headers || {}) } });
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('json') ? await res.json() : await res.text();
+      if (!res.ok) throw new Error((data && data.detail) || 'Ошибка');
+      return data;
+    }
+
+    const player = document.getElementById('player');
+    function play(url) {
+      if (!url) return;
+      try { player.pause(); player.currentTime = 0; } catch (e) {}
+      player.src = url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now(); // не брать из кэша после замены
+      player.play().catch(() => {});
+    }
+
+    let themes = [], words = [];
+
+    function rowHtml(w) {
+      const hasImg = w.image_url && !w.image_url.includes('noimg');
+      const audio = w.audio_url || w.tts_url;
+      const isRec = !!w.audio_url;
+      return { hasImg, audio, isRec };
+    }
+
+    function render() {
+      const q = (document.getElementById('search').value || '').toLowerCase();
+      const f = document.getElementById('filter').value;
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      let shown = 0;
+      words.forEach(w => {
+        const { hasImg, audio, isRec } = rowHtml(w);
+        if (q && !(w.text_tt.toLowerCase().includes(q) || w.text_ru.toLowerCase().includes(q))) return;
+        if (f === 'noimg' && hasImg) return;
+        if (f === 'rec' && !isRec) return;
+        if (f === 'tts' && isRec) return;
+        shown++;
+
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.dataset.wid = w.id;
+
+        const thumb = document.createElement('div'); thumb.className = 'thumb';
+        if (hasImg) { const img = document.createElement('img'); img.src = w.image_url + '?v=' + Date.now(); thumb.appendChild(img); }
+        else thumb.textContent = w.emoji || '❓';
+        row.appendChild(thumb);
+
+        const wt = document.createElement('div'); wt.className = 'wtext';
+        const tt = document.createElement('div'); tt.className = 'tt'; tt.textContent = w.text_tt;
+        const ru = document.createElement('div'); ru.className = 'ru'; ru.textContent = w.text_ru;
+        wt.appendChild(tt); wt.appendChild(ru); row.appendChild(wt);
+
+        const badge = document.createElement('span');
+        badge.className = 'badge' + (isRec ? ' rec' : '');
+        badge.textContent = audio ? (isRec ? '🎙 запись' : '🤖 TTS') : '🔇 нет звука';
+        row.appendChild(badge);
+
+        const actions = document.createElement('div'); actions.className = 'actions';
+
+        const playBtn = document.createElement('button'); playBtn.className = 'play'; playBtn.textContent = '▶';
+        playBtn.disabled = !audio;
+        playBtn.onclick = () => play(audio);
+        actions.appendChild(playBtn);
+
+        const mkVoice = (voice, label) => {
+          const b = document.createElement('button'); b.className = 'voice'; b.textContent = label;
+          b.onclick = async () => {
+            b.disabled = true; b.textContent = '…';
+            try {
+              const r = await api(`/admin/tts_word/${w.id}?voice=${voice}`, { method: 'POST' });
+              w.tts_url = r.tts_url; w.audio_url = null;
+              render();
+              play(r.tts_url);
+            } catch (e) { alert(e.message); b.disabled = false; b.textContent = label; }
+          };
+          return b;
+        };
+        actions.appendChild(mkVoice('alsu', '🔁 Алсу'));
+        actions.appendChild(mkVoice('almaz', '🔁 Алмаз'));
+
+        const upA = document.createElement('label'); upA.className = 'up'; upA.textContent = '📤 звук';
+        const finA = document.createElement('input'); finA.type = 'file'; finA.accept = 'audio/*';
+        finA.onchange = async () => {
+          if (!finA.files[0]) return;
+          const fd = new FormData(); fd.append('file', finA.files[0]);
+          try {
+            const r = await api(`/admin/word_audio/${w.id}`, { method: 'POST', body: fd });
+            w.audio_url = r.audio_url;
+            render();
+            play(r.audio_url);
+          } catch (e) { alert(e.message); }
+        };
+        upA.appendChild(finA); actions.appendChild(upA);
+
+        const upI = document.createElement('label'); upI.className = 'up'; upI.textContent = '🖼 картинка';
+        const finI = document.createElement('input'); finI.type = 'file'; finI.accept = 'image/*';
+        finI.onchange = async () => {
+          if (!finI.files[0]) return;
+          const fd = new FormData(); fd.append('file', finI.files[0]);
+          try {
+            const r = await api(`/admin/word_image/${w.id}`, { method: 'POST', body: fd });
+            w.image_url = r.image_url;
+            render();
+          } catch (e) { alert(e.message); }
+        };
+        upI.appendChild(finI); actions.appendChild(upI);
+
+        row.appendChild(actions);
+        list.appendChild(row);
+      });
+      document.getElementById('count').textContent = `Показано слов: ${shown} из ${words.length}`;
+    }
+
+    async function loadWords() {
+      const themeId = document.getElementById('theme').value;
+      words = await api(`/themes/${themeId}/words`);
+      render();
+    }
+
+    (async () => {
+      themes = await api('/themes');
+      const sel = document.getElementById('theme');
+      themes.forEach(t => {
+        const o = document.createElement('option');
+        o.value = t.id; o.textContent = `${t.icon_emoji || ''} ${t.title_ru}`;
+        sel.appendChild(o);
+      });
+      sel.onchange = loadWords;
+      document.getElementById('search').oninput = render;
+      document.getElementById('filter').onchange = render;
+      if (themes.length) await loadWords();
+    })();
+  </script>
+</body>
+</html>

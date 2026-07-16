@@ -9,7 +9,7 @@ import httpx
 from .config import STATIC_DIR
 
 TTS_API_URL = "https://tat-tts.api.translate.tatar/listening/"
-DEFAULT_SPEAKER = "almaz"
+DEFAULT_SPEAKER = "alsu"  # женский голос — звучит стабильнее мужского almaz
 MAX_TEXT_LEN = 200
 
 _slug_re = re.compile(r"[^\wәөүҗңһӘӨҮҖҢҺ-]+", re.UNICODE)
