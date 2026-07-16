@@ -338,6 +338,22 @@ async def tts_all(
     return {"done": done, "remaining_errors": errors}
 
 
+@router.post("/word_flag/{word_id}")
+async def word_flag(
+    word_id: int,
+    flagged: bool = True,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Пометка «картинка неадекватная» — для последующей ручной замены/перегенерации."""
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word:
+        raise HTTPException(status_code=404, detail="Слово не найдено")
+    word.image_flag = 1 if flagged else 0
+    await db.commit()
+    return {"word_id": word.id, "image_flag": word.image_flag}
+
+
 @router.post("/word_image/{word_id}")
 async def word_image(
     word_id: int,

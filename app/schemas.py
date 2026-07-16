@@ -54,6 +54,7 @@ class WordOut(BaseModel):
     theme_id: int
     emoji: Optional[str] = None
     tts_url: Optional[str] = None
+    image_flag: int = 0
 
 
 class StudyItem(BaseModel):

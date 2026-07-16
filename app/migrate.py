@@ -13,6 +13,7 @@ _COLUMNS: dict[str, dict[str, str]] = {
     "words": {
         "emoji": "VARCHAR(16)",
         "tts_url": "VARCHAR(255)",
+        "image_flag": "INTEGER DEFAULT 0",
     },
     "user_progress": {
         "strength": "INTEGER DEFAULT 0",

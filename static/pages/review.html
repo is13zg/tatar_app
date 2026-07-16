@@ -43,6 +43,7 @@
       <option value="noimg">Без картинки</option>
       <option value="rec">Своя запись 🎙</option>
       <option value="tts">Озвучка TTS 🤖</option>
+      <option value="flagged">🚩 Помеченные картинки</option>
     </select>
   </header>
 
@@ -97,6 +98,7 @@
         if (f === 'noimg' && hasImg) return;
         if (f === 'rec' && !isRec) return;
         if (f === 'tts' && isRec) return;
+        if (f === 'flagged' && !w.image_flag) return;
         shown++;
 
         const row = document.createElement('div');
@@ -155,6 +157,12 @@
         };
         upA.appendChild(finA); actions.appendChild(upA);
 
+        // запись собственного голоса с обработкой (шумоподавление/обрезка тишины/нормализация)
+        const recBtn = document.createElement('button'); recBtn.textContent = '🎙 записать';
+        recBtn.style.background = '#fee2e2';
+        recBtn.onclick = () => startRecording(w, row, recBtn);
+        actions.appendChild(recBtn);
+
         const upI = document.createElement('label'); upI.className = 'up'; upI.textContent = '🖼 картинка';
         const finI = document.createElement('input'); finI.type = 'file'; finI.accept = 'image/*';
         finI.onchange = async () => {
@@ -162,16 +170,137 @@
           const fd = new FormData(); fd.append('file', finI.files[0]);
           try {
             const r = await api(`/admin/word_image/${w.id}`, { method: 'POST', body: fd });
-            w.image_url = r.image_url;
+            w.image_url = r.image_url; w.image_flag = 0;
+            api(`/admin/word_flag/${w.id}?flagged=false`, { method: 'POST' }).catch(() => {});
             render();
           } catch (e) { alert(e.message); }
         };
         upI.appendChild(finI); actions.appendChild(upI);
 
+        const flagBtn = document.createElement('button');
+        flagBtn.textContent = w.image_flag ? '🚩 помечена' : '🏳 пометить';
+        flagBtn.style.background = w.image_flag ? '#fecaca' : '#e2e8f0';
+        flagBtn.title = 'Пометить картинку как неудачную (для замены)';
+        flagBtn.onclick = async () => {
+          try {
+            const r = await api(`/admin/word_flag/${w.id}?flagged=${w.image_flag ? 'false' : 'true'}`, { method: 'POST' });
+            w.image_flag = r.image_flag;
+            render();
+          } catch (e) { alert(e.message); }
+        };
+        actions.appendChild(flagBtn);
+
         row.appendChild(actions);
         list.appendChild(row);
       });
       document.getElementById('count').textContent = `Показано слов: ${shown} из ${words.length}`;
+    }
+
+    // ---------- запись голоса с минимальной обработкой ----------
+    // цепочка: браузерное шумоподавление (noiseSuppression) → high-pass 80 Гц (гул) →
+    // обрезка тишины по краям → нормализация пика → WAV 22050 Гц (как у TTS)
+
+    function encodeWav(samples, rate) {
+      const buf = new ArrayBuffer(44 + samples.length * 2);
+      const v = new DataView(buf);
+      const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+      ws(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); ws(8, 'WAVE');
+      ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+      ws(36, 'data'); v.setUint32(40, samples.length * 2, true);
+      for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+      return new Blob([buf], { type: 'audio/wav' });
+    }
+
+    async function processRecording(blob) {
+      const RATE = 22050;
+      const raw = await blob.arrayBuffer();
+      const probe = new AudioContext();
+      const decoded = await probe.decodeAudioData(raw);
+      probe.close();
+      // high-pass + ресемплинг в OfflineAudioContext
+      const off = new OfflineAudioContext(1, Math.ceil(decoded.duration * RATE), RATE);
+      const src = off.createBufferSource(); src.buffer = decoded;
+      const hp = off.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 80;
+      src.connect(hp); hp.connect(off.destination); src.start();
+      const rendered = await off.startRendering();
+      let data = rendered.getChannelData(0);
+      // обрезка тишины по краям (порог 1.5% пика, отступ 60 мс)
+      let peak = 0;
+      for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+      if (peak < 0.005) throw new Error('Слишком тихо — попробуйте ещё раз ближе к микрофону');
+      const thr = Math.max(0.015 * peak, 0.004);
+      let a = 0, b = data.length - 1;
+      while (a < b && Math.abs(data[a]) < thr) a++;
+      while (b > a && Math.abs(data[b]) < thr) b--;
+      const pad = Math.floor(0.06 * RATE);
+      a = Math.max(0, a - pad); b = Math.min(data.length - 1, b + pad);
+      data = data.slice(a, b + 1);
+      // нормализация пика до 0.89
+      let p2 = 0;
+      for (let i = 0; i < data.length; i++) p2 = Math.max(p2, Math.abs(data[i]));
+      const gain = p2 > 0 ? 0.89 / p2 : 1;
+      const out = new Float32Array(data.length);
+      for (let i = 0; i < data.length; i++) out[i] = data[i] * gain;
+      return encodeWav(out, RATE);
+    }
+    window.__processRecording = processRecording; // для автотеста
+
+    async function startRecording(w, row, btn) {
+      if (!window.isSecureContext || !navigator.mediaDevices) {
+        alert('Запись работает только на https-версии: https://62.113.108.107:8443');
+        return;
+      }
+      if (btn.dataset.rec === '1') { window.__stopRec && window.__stopRec(); return; }
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true, channelCount: 1 },
+        });
+      } catch (e) { alert('Микрофон недоступен: ' + e.name); return; }
+      const rec = new MediaRecorder(stream);
+      const chunks = [];
+      rec.ondataavailable = e => chunks.push(e.data);
+      btn.dataset.rec = '1'; btn.textContent = '⏹ стоп'; btn.style.background = '#fecaca';
+      const stop = () => { if (rec.state === 'recording') rec.stop(); };
+      window.__stopRec = stop;
+      const autoStop = setTimeout(stop, 5000);
+      rec.onstop = async () => {
+        clearTimeout(autoStop);
+        stream.getTracks().forEach(t => t.stop());
+        btn.dataset.rec = ''; btn.textContent = '🎙 записать'; btn.style.background = '#fee2e2';
+        let wav;
+        try {
+          wav = await processRecording(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }));
+        } catch (e) { alert(e.message); return; }
+        // предпрослушка + сохранить/отмена
+        const url = URL.createObjectURL(wav);
+        const bar = document.createElement('div');
+        bar.style.cssText = 'display:flex;gap:6px;align-items:center;width:100%;margin-top:6px;';
+        const pv = document.createElement('button'); pv.className = 'play'; pv.textContent = '▶';
+        pv.onclick = () => { const A = new Audio(url); A.play(); };
+        const save = document.createElement('button'); save.textContent = '💾 сохранить';
+        save.style.background = '#dcfce7';
+        save.onclick = async () => {
+          const fd = new FormData(); fd.append('file', wav, `word_${w.id}.wav`);
+          try {
+            const r = await api(`/admin/word_audio/${w.id}`, { method: 'POST', body: fd });
+            w.audio_url = r.audio_url;
+            URL.revokeObjectURL(url);
+            render();
+            play(r.audio_url);
+          } catch (e) { alert(e.message); }
+        };
+        const cancel = document.createElement('button'); cancel.textContent = '✖';
+        cancel.onclick = () => { URL.revokeObjectURL(url); bar.remove(); };
+        bar.appendChild(pv); bar.appendChild(save); bar.appendChild(cancel);
+        row.appendChild(bar);
+        pv.click(); // сразу дать послушать результат
+      };
+      rec.start();
     }
 
     async function loadWords() {

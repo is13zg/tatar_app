@@ -45,6 +45,7 @@ class Word(Base):
     audio_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     emoji: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     tts_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    image_flag: Mapped[int] = mapped_column(Integer, default=0)  # 1 = картинка помечена как неудачная
 
     theme: Mapped[Theme] = relationship(back_populates="words")
     progress: Mapped[list["UserProgress"]] = relationship(back_populates="word", cascade="all, delete-orphan")
