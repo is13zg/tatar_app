@@ -35,6 +35,10 @@
   const INSTR_AUDIO = {
     'Новое слово!': 'novoe_slovo',
     'Собери предложение из слов': 'soberi_predlozhenie',
+    'Что в коробке? Нажми!': 'chto_v_korobke',
+    'Кто прячется в тени? Нажми!': 'kto_v_teni',
+    'Раскрась картинку! Нажимай!': 'raskras_kartinku',
+    'Помоги вырасти! Нажимай!': 'pomogi_vyrasti',
     'Послушай и найди картинку': 'najdi_kartinku',
     'Это правильная картинка?': 'pravilnaya_kartinka',
     'Найди пары': 'najdi_pary',
@@ -250,6 +254,127 @@
       await speakThenPlay('Новое слово!', w.audio_url);
       if (w.sentence_audio_url) { await sleep(400); await playAudio(w.sentence_audio_url); }
     })();
+  }
+
+  // ---- презентационные мини-игры подачи (уроки 1-2, провал невозможен) ----
+
+  function presenterFooter(w, screen, done) {
+    // общий низ: слово + перевод + предложение + «Дальше»
+    const twp = el('div', 'word-big', w.text_tt);
+    if ((w.text_tt || '').length > 14) twp.style.fontSize = '24px';
+    screen.appendChild(twp);
+    screen.appendChild(el('div', 'word-small', w.text_ru));
+    if (w.sentence_tt) screen.appendChild(sentenceLine(w));
+    const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;align-items:center;margin-top:12px;';
+    const play = el('button', 'play-btn', '🔊');
+    play.onclick = async () => {
+      await playAudio(w.audio_url);
+      if (w.sentence_audio_url) { await sleep(350); await playAudio(w.sentence_audio_url); }
+    };
+    const next = el('button', 'kid-btn', 'Дальше ➜');
+    next.onclick = () => done({ scored: false });
+    row.appendChild(play); row.appendChild(next); screen.appendChild(row);
+  }
+
+  function rSurpriseBox(item, screen, done) {
+    const w = item.word;
+    screen.appendChild(el('div', 'instr', '🎁 Что в коробке? Нажми!'));
+    const stage = el('div', 'big-visual');
+    const box = el('div', '', '🎁');
+    box.style.cssText = 'font-size:clamp(90px,30vw,150px);cursor:pointer;animation:shake 1.2s infinite;line-height:1.1;';
+    stage.appendChild(box);
+    screen.appendChild(stage);
+    let opened = false;
+    const open = async () => {
+      if (opened) return; opened = true;
+      stage.innerHTML = '';
+      const v = visual(w);
+      v.style && (v.style.animation = 'pop .5s');
+      stage.appendChild(v);
+      confetti();
+      audioEl.volume = 1;
+      await playAudio(w.audio_url);
+      if (w.sentence_audio_url) { await sleep(350); await playAudio(w.sentence_audio_url); }
+      presenterFooter(w, screen, done);
+    };
+    box.onclick = open;
+    // приглушённое слово из закрытой коробки — интрига
+    (async () => { await speakRu('Что в коробке? Нажми!'); audioEl.volume = 0.35; await playAudio(w.audio_url); audioEl.volume = 1; })();
+  }
+
+  function rShadowReveal(item, screen, done) {
+    const w = item.word;
+    screen.appendChild(el('div', 'instr', '🌑 Кто прячется в тени? Нажми!'));
+    const stage = el('div', 'big-visual');
+    const v = visual(w);
+    v.style.filter = 'brightness(0)';
+    v.style.transition = 'filter .7s';
+    v.style.cursor = 'pointer';
+    stage.appendChild(v);
+    screen.appendChild(stage);
+    let revealed = false;
+    v.onclick = async () => {
+      if (revealed) return; revealed = true;
+      v.style.filter = 'none';
+      await sleep(700);
+      await playAudio(w.audio_url);
+      presenterFooter(w, screen, done);
+    };
+    speakThenPlay('Кто прячется в тени? Нажми!', w.audio_url);
+  }
+
+  function rColorReveal(item, screen, done) {
+    const w = item.word;
+    screen.appendChild(el('div', 'instr', '🖌️ Раскрась картинку! Нажимай!'));
+    const stage = el('div', 'big-visual');
+    const v = visual(w);
+    const steps = [1, 0.6, 0.3, 0];
+    let step = 0;
+    v.style.filter = 'grayscale(1)';
+    v.style.transition = 'filter .4s';
+    v.style.cursor = 'pointer';
+    stage.appendChild(v);
+    screen.appendChild(stage);
+    let finished = false;
+    v.onclick = async () => {
+      if (finished || !audioEl.paused) return; // звуки строго по очереди
+      step = Math.min(step + 1, steps.length - 1);
+      v.style.filter = `grayscale(${steps[step]})`;
+      await playAudio(w.audio_url);
+      if (step === steps.length - 1 && !finished) {
+        finished = true;
+        confetti();
+        presenterFooter(w, screen, done);
+      }
+    };
+    speakThenPlay('Раскрась картинку! Нажимай!', w.audio_url);
+  }
+
+  function rGrowReveal(item, screen, done) {
+    const w = item.word;
+    screen.appendChild(el('div', 'instr', '🌱 Помоги вырасти! Нажимай!'));
+    const stage = el('div', 'big-visual');
+    const v = visual(w);
+    const scales = [0.3, 0.55, 0.8, 1];
+    let step = 0;
+    v.style.transform = `scale(${scales[0]})`;
+    v.style.transition = 'transform .4s';
+    v.style.cursor = 'pointer';
+    stage.appendChild(v);
+    screen.appendChild(stage);
+    let finished = false;
+    stage.onclick = async () => {
+      if (finished || !audioEl.paused) return;
+      step = Math.min(step + 1, scales.length - 1);
+      v.style.transform = `scale(${scales[step]})`;
+      await playAudio(w.audio_url);
+      if (step === scales.length - 1 && !finished) {
+        finished = true;
+        confetti();
+        presenterFooter(w, screen, done);
+      }
+    };
+    speakThenPlay('Помоги вырасти! Нажимай!', w.audio_url);
   }
 
   function rBuildSentence(item, screen, done) {
@@ -662,6 +787,10 @@
 
   const RENDERERS = {
     card: rCard,
+    surprise_box: rSurpriseBox,
+    shadow_reveal: rShadowReveal,
+    color_reveal: rColorReveal,
+    grow_reveal: rGrowReveal,
     pick_image: rPickImage,
     yes_no: rYesNo,
     memory: rMemory,

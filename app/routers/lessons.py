@@ -206,6 +206,28 @@ def ex_card(w: dict) -> dict:
     return {"type": "card", "word": w}
 
 
+# «Презентационные» мини-игры подачи слова (уроки 1-2, без оценки, провал невозможен):
+# сюрприз-коробка, тень, раскраска, вырасти. Ротация даёт разнообразие с первого урока.
+
+def ex_surprise_box(w: dict) -> dict:
+    return {"type": "surprise_box", "word": w}
+
+
+def ex_shadow_reveal(w: dict) -> dict:
+    return {"type": "shadow_reveal", "word": w}
+
+
+def ex_color_reveal(w: dict) -> dict:
+    return {"type": "color_reveal", "word": w}
+
+
+def ex_grow_reveal(w: dict) -> dict:
+    return {"type": "grow_reveal", "word": w}
+
+
+PRESENTERS = [ex_card, ex_surprise_box, ex_shadow_reveal, ex_color_reveal, ex_grow_reveal]
+
+
 def ex_pick_image(target: dict, pool: list[dict]) -> Optional[dict]:
     if not target["audio_url"]:
         return None  # упражнение звуковое — без озвучки бессмысленно
@@ -433,9 +455,12 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             if w["audio_url"]:
                 practice.append(ex_repeat_after(w))
     else:
-        # подача с немедленным закреплением: карточка → выбор картинки на это же слово
-        for w in new_words:
-            items.append(ex_card(w))
+        # подача с немедленным закреплением: мини-игра подачи → выбор картинки на это же слово
+        # формат подачи ротируется (карточка/коробка/тень/раскраска/рост) — разнообразие с урока 1
+        start_fmt = random.randrange(len(PRESENTERS))
+        for i, w in enumerate(new_words):
+            presenter = PRESENTERS[(start_fmt + i) % len(PRESENTERS)]
+            items.append(presenter(w))
             e = ex_pick_image(w, pool)
             if e:
                 items.append(e)
