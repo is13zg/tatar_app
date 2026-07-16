@@ -3,47 +3,83 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Статистика — TT-Learn Kids</title>
+  <title>Для родителей — TT-Learn Kids</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
+  <link rel="stylesheet" href="/static/kid.css" />
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; }
-    nav { display: flex; gap: 12px; padding: 12px; border-bottom: 1px solid #eee; overflow-x: auto; white-space: nowrap; }
-    nav a { text-decoration: none; color: #2563eb; }
-    .wrap { max-width: 900px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
-    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-    .theme { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
-    .muted { color: #6b7280; }
+    .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .stat {
+      background: #fff7ed; border-radius: 16px; padding: 12px; text-align: center;
+    }
+    .stat .num { font-size: 28px; font-weight: 800; }
+    .stat .lbl { font-size: 13px; color: #92400e; font-weight: 600; }
+    .section-title { font-weight: 800; font-size: 17px; margin: 4px 0 10px; }
+    .stickers-row { font-size: 26px; letter-spacing: 6px; margin-top: 8px; text-align: center; word-break: break-all; }
+    .daily-line { text-align: center; margin-top: 8px; font-weight: 700; font-size: 15px; }
+    .theme-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; }
+    .theme-row:last-child { border-bottom: none; }
+    .theme-row .ic { font-size: 24px; flex: none; width: 32px; text-align: center; }
+    .theme-row .body { flex: 1; min-width: 0; }
+    .theme-row .name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar { height: 8px; border-radius: 6px; background: #e2e8f0; margin-top: 4px; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: var(--good); border-radius: 6px; }
+    .theme-row .meta { flex: none; text-align: right; font-size: 12px; color: #6b7280; font-weight: 700; }
+    .theme-row .meta .warn { color: #b45309; }
+    .theme-row.locked { opacity: .45; }
+    .lead-row { display: flex; gap: 8px; padding: 6px 0; font-weight: 700; font-size: 15px; align-items: center; }
+    .lead-row .place { width: 30px; text-align: center; }
+    .lead-row .name { flex: 1; }
+    .lead-row.me { background: #fff7ed; border-radius: 10px; padding: 6px 8px; }
+    .links-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .links-row a {
+      flex: 1; text-align: center; background: var(--card); border-radius: 14px; padding: 12px;
+      text-decoration: none; color: var(--ink); font-weight: 700; box-shadow: var(--shadow); font-size: 15px; white-space: nowrap;
+    }
+    .logout-btn { border: none; background: #f1f5f9; border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 700; cursor: pointer; color: #64748b; }
+    .kid-card + .kid-card { margin-top: 14px; }
   </style>
 </head>
 <body>
-  <nav>
-    <a href="/static/pages/home.html">🏠 Главная</a>
-    <a href="/static/pages/study.html">Изучение</a>
-    <a href="/static/pages/repeat.html">Повторение</a>
-    <a href="/static/pages/mistakes.html">Работа над ошибками</a>
-    <a href="/static/pages/stats.html">Статистика</a>
-  </nav>
-
-  <div class="wrap">
-    <div class="card" id="kid-progress"></div>
-    <div class="card" id="overall"></div>
-    <div class="card">
-      <h3>По темам</h3>
-      <div class="grid" id="themes"></div>
+  <div class="kid-wrap">
+    <div class="kid-top">
+      <button class="kid-back" onclick="location.href='/static/pages/home.html'">←</button>
+      <div class="kid-chip">📊 Для родителей</div>
+      <div class="spacer"></div>
+      <button class="logout-btn" id="logout">🚪 Выйти</button>
     </div>
-    <div class="card">
-      <h3>Топ 10 по выученным словам</h3>
+
+    <div class="kid-card" id="kid-progress">
+      <div class="section-title">🧒 Путь ребёнка</div>
+      <div class="stat-grid" id="stat-grid"></div>
+      <div class="stickers-row" id="stickers"></div>
+      <div class="daily-line" id="daily"></div>
+    </div>
+
+    <div class="kid-card">
+      <div class="section-title">📚 Прогресс по темам</div>
+      <div id="themes"></div>
+    </div>
+
+    <div class="kid-card">
+      <div class="section-title">🏆 Семейный рейтинг</div>
       <div id="leaders"></div>
+    </div>
+
+    <div class="links-row" id="links">
+      <a href="/static/pages/study.html">📖 Словарик</a>
+      <a href="/static/pages/repeat.html">💪 Тренировка</a>
     </div>
   </div>
 
   <script>
     function token() { return localStorage.getItem('token'); }
     if (!token()) location.href = '/static/pages/login.html';
-    const _lg = document.getElementById('logout'); if (_lg) _lg.onclick = () => { localStorage.removeItem('token'); localStorage.removeItem('username'); };
+    document.getElementById('logout').onclick = () => {
+      localStorage.removeItem('token'); localStorage.removeItem('username');
+      location.href = '/static/pages/login.html';
+    };
 
-    // родительский гейт: страница со статистикой и «Выходом» — не для детских пальцев
+    // родительский гейт: страница с «Выйти» и статистикой — не для детских пальцев
     if (sessionStorage.getItem('parent_ok') !== '1') {
       const a = 3 + Math.floor(Math.random() * 6), b = 3 + Math.floor(Math.random() * 6);
       const right = a * b;
@@ -51,7 +87,8 @@
       const ov = document.createElement('div');
       ov.style.cssText = 'position:fixed;inset:0;background:linear-gradient(160deg,#fef6e4,#e0f2fe);display:grid;place-items:center;z-index:99;padding:20px;';
       const box = document.createElement('div');
-      box.style.cssText = 'background:white;border-radius:24px;padding:26px;max-width:340px;width:100%;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.12);';
+      box.className = 'kid-card';
+      box.style.cssText = 'max-width:340px;width:100%;text-align:center;';
       box.innerHTML = '<div style="font-size:44px;">🔒</div><div style="font-weight:800;font-size:19px;margin:8px 0;">Страница для родителей</div>' +
         `<div style="font-size:17px;margin-bottom:14px;">Сколько будет <b>${a} × ${b}</b>?</div>`;
       const row = document.createElement('div');
@@ -59,7 +96,7 @@
       opts.forEach(v => {
         const btn = document.createElement('button');
         btn.textContent = v;
-        btn.style.cssText = 'flex:1;padding:14px;border:none;border-radius:14px;background:#ea580c;color:white;font-size:20px;font-weight:800;cursor:pointer;';
+        btn.style.cssText = 'flex:1;padding:14px;border:none;border-radius:14px;background:var(--accent);color:white;font-size:20px;font-weight:800;cursor:pointer;';
         btn.onclick = () => {
           if (v === right) { sessionStorage.setItem('parent_ok', '1'); ov.remove(); }
           else location.href = '/static/pages/home.html';
@@ -78,44 +115,83 @@
 
     async function api(path) {
       const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token() } });
+      if (res.status === 401) { location.href = '/static/pages/login.html'; throw new Error('401'); }
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     }
 
+    function statTile(icon, num, label) {
+      const d = document.createElement('div'); d.className = 'stat';
+      const n = document.createElement('div'); n.className = 'num'; n.textContent = `${icon} ${num}`;
+      const l = document.createElement('div'); l.className = 'lbl'; l.textContent = label;
+      d.appendChild(n); d.appendChild(l);
+      return d;
+    }
+
     (async () => {
-      try {
-        const h = await api('/lesson/home');
-        const p = await api('/lesson/path');
-        const done = p.units.filter(u => u.state === 'done').length;
-        document.getElementById('kid-progress').innerHTML = `
-          <h3 style="margin-top:0;">Путь ребёнка</h3>
-          <div>🔥 <b>Серия дней:</b> ${h.streak}</div>
-          <div>⭐ <b>Звёзды:</b> ${h.total_stars}</div>
-          <div>🏅 <b>Наклейки:</b> ${h.stickers.join(' ') || 'пока нет'}</div>
-          <div>📚 <b>Пройдено юнитов:</b> ${done} из ${p.units.length}</div>
-          <div>🧠 <b>Слов в памяти (повторено ≥2 раз):</b> ${h.learned_words}</div>
-          <div>${h.daily_done ? '✅ Задание дня выполнено' : '⬜ Задание дня ещё не сделано'}</div>`;
-      } catch (e) {}
-      const s = await api('/stats');
-      const overall = document.getElementById('overall');
-      overall.innerHTML = `
-        <div><b>Всего слов:</b> ${s.total_words}</div>
-        <div><b>Выучено:</b> ${s.learned_words}</div>
-        <div><b>Ошибок всего:</b> ${s.mistakes_total}</div>
-        <div><b>Пользователей всего:</b> ${s.total_users}</div>
-        <div class="muted">Последнее обновление: сейчас</div>
-      `;
+      const [h, p, s] = await Promise.all([api('/lesson/home'), api('/lesson/path'), api('/stats')]);
+
+      const grid = document.getElementById('stat-grid');
+      const doneUnits = p.units.filter(u => u.state === 'done').length;
+      grid.appendChild(statTile('🔥', h.streak, 'серия дней'));
+      grid.appendChild(statTile('⭐', h.total_stars, 'звёзды'));
+      grid.appendChild(statTile('🧠', h.learned_words, 'слов в памяти'));
+      grid.appendChild(statTile('📚', `${doneUnits}/${p.units.length}`, 'юнитов пройдено'));
+      document.getElementById('stickers').textContent = (h.stickers || []).join(' ');
+      document.getElementById('daily').textContent = h.daily_done ? '✅ Задание дня выполнено' : '⬜ Задание дня ещё не сделано';
+
+      // прогресс по темам в порядке карты
+      const byTitle = {};
+      s.themes.forEach(t => { byTitle[t.title_ru] = t; });
       const cont = document.getElementById('themes');
-      s.themes.forEach(t => {
-        const el = document.createElement('div'); el.className = 'theme';
-        el.innerHTML = `<div><b>${t.title_ru}</b></div>
-          <div>Всего: ${t.total_words}</div>
-          <div>Выучено: ${t.learned_words}</div>
-          <div>Ошибок: ${t.mistakes}</div>`;
-        cont.appendChild(el);
+      p.units.forEach(u => {
+        const st = byTitle[u.title_ru] || { learned_words: 0, total_words: u.word_count, mistakes: 0 };
+        const row = document.createElement('div');
+        row.className = 'theme-row' + (u.state === 'locked' && !p.is_admin ? ' locked' : '');
+        const ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = u.icon_emoji || '📚';
+        const body = document.createElement('div'); body.className = 'body';
+        const name = document.createElement('div'); name.className = 'name'; name.textContent = u.title_ru;
+        const bar = document.createElement('div'); bar.className = 'bar';
+        const fill = document.createElement('i');
+        const pct = st.total_words ? Math.round(100 * st.learned_words / st.total_words) : 0;
+        fill.style.width = pct + '%';
+        bar.appendChild(fill);
+        body.appendChild(name); body.appendChild(bar);
+        const meta = document.createElement('div'); meta.className = 'meta';
+        meta.textContent = `${st.learned_words}/${st.total_words}`;
+        if (st.mistakes > 0) {
+          const w = document.createElement('div'); w.className = 'warn'; w.textContent = `⚠ ${st.mistakes}`;
+          meta.appendChild(w);
+        }
+        row.appendChild(ic); row.appendChild(body); row.appendChild(meta);
+        cont.appendChild(row);
       });
-      const leaders = document.getElementById('leaders');
-      leaders.innerHTML = s.leaderboard.map((r, i) => `${i+1}. ${r.username} — ${r.learned}`).join('<br/>');
+
+      // рейтинг
+      const me = localStorage.getItem('username');
+      const lead = document.getElementById('leaders');
+      const medals = ['🥇', '🥈', '🥉'];
+      (s.leaderboard || []).forEach((r, i) => {
+        const row = document.createElement('div');
+        row.className = 'lead-row' + (r.username === me ? ' me' : '');
+        const place = document.createElement('div'); place.className = 'place'; place.textContent = medals[i] || (i + 1);
+        const name = document.createElement('div'); name.className = 'name'; name.textContent = r.username;
+        const cnt = document.createElement('div'); cnt.textContent = r.learned + ' слов';
+        row.appendChild(place); row.appendChild(name); row.appendChild(cnt);
+        lead.appendChild(row);
+      });
+      if (!(s.leaderboard || []).length) lead.textContent = 'Пока пусто';
+
+      // админ-ссылки
+      try {
+        const meInfo = await api('/auth/me');
+        if (meInfo.is_admin) {
+          const links = document.getElementById('links');
+          const a1 = document.createElement('a'); a1.href = '/static/pages/review.html'; a1.textContent = '🔎 Проверка слов';
+          const a2 = document.createElement('a'); a2.href = '/static/pages/admin.html'; a2.textContent = '⚙️ Админка';
+          links.appendChild(a1); links.appendChild(a2);
+        }
+      } catch (e) {}
     })();
   </script>
 </body>
