@@ -55,6 +55,9 @@ class WordOut(BaseModel):
     emoji: Optional[str] = None
     tts_url: Optional[str] = None
     image_flag: int = 0
+    sentence_tt: Optional[str] = None
+    sentence_ru: Optional[str] = None
+    sentence_audio_url: Optional[str] = None
 
 
 class StudyItem(BaseModel):

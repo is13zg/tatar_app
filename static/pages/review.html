@@ -191,6 +191,55 @@
         actions.appendChild(flagBtn);
 
         row.appendChild(actions);
+
+        // блок предложения
+        const sbox = document.createElement('div');
+        sbox.style.cssText = 'width:100%;display:flex;gap:8px;align-items:center;background:#fffbeb;border-radius:8px;padding:6px 10px;font-size:14px;flex-wrap:wrap;';
+        const stxt = document.createElement('div'); stxt.style.flex = '1';
+        if (w.sentence_tt) {
+          stxt.innerHTML = '';
+          const t1 = document.createElement('b'); t1.textContent = w.sentence_tt;
+          const t2 = document.createElement('span'); t2.textContent = ' — ' + (w.sentence_ru || '');
+          t2.style.color = '#92400e';
+          stxt.appendChild(t1); stxt.appendChild(t2);
+        } else {
+          stxt.textContent = 'Предложения нет';
+          stxt.style.color = '#9ca3af';
+        }
+        sbox.appendChild(stxt);
+        if (w.sentence_tt) {
+          const sp = document.createElement('button'); sp.textContent = '▶'; sp.style.cssText = 'padding:4px 10px;';
+          sp.disabled = !w.sentence_audio_url;
+          sp.onclick = () => play(w.sentence_audio_url);
+          sbox.appendChild(sp);
+          const sv = document.createElement('button'); sv.textContent = '🔁 озвучить'; sv.style.cssText = 'padding:4px 10px;background:#ecfdf5;';
+          sv.onclick = async () => {
+            sv.disabled = true; sv.textContent = '…';
+            try {
+              const r = await api(`/admin/tts_sentence/${w.id}?voice=alsu`, { method: 'POST' });
+              w.sentence_audio_url = r.sentence_audio_url; render(); play(r.sentence_audio_url);
+            } catch (e) { alert(e.message); sv.disabled = false; sv.textContent = '🔁 озвучить'; }
+          };
+          sbox.appendChild(sv);
+        }
+        const se = document.createElement('button'); se.textContent = '✏️'; se.style.cssText = 'padding:4px 10px;';
+        se.onclick = async () => {
+          const tt = prompt('Татарское предложение (пусто = убрать):', w.sentence_tt || '');
+          if (tt === null) return;
+          const ru = tt ? (prompt('Русский перевод:', w.sentence_ru || '') ?? '') : '';
+          try {
+            const r = await api(`/admin/sentence/${w.id}`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sentence_tt: tt, sentence_ru: ru }),
+            });
+            w.sentence_tt = r.sentence_tt; w.sentence_ru = r.sentence_ru; w.sentence_audio_url = r.sentence_audio_url;
+            render();
+            if (r.sentence_audio_url) play(r.sentence_audio_url);
+          } catch (e) { alert(e.message); }
+        };
+        sbox.appendChild(se);
+        row.appendChild(sbox);
+
         list.appendChild(row);
       });
       document.getElementById('count').textContent = `Показано слов: ${shown} из ${words.length}`;

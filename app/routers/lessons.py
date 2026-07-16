@@ -142,7 +142,19 @@ def word_dto(w: Word) -> dict:
         "image_url": w.image_url,
         "emoji": w.emoji,
         "audio_url": w.audio_url or w.tts_url,
+        "sentence_tt": w.sentence_tt,
+        "sentence_ru": w.sentence_ru,
+        "sentence_audio_url": w.sentence_audio_url,
     }
+
+
+_token_re = None
+
+
+def sentence_tokens(sentence: str) -> list[str]:
+    """Слова предложения без знаков препинания (для конструктора)."""
+    import re
+    return [t for t in re.split(r"[^\wәөүҗңһӘӨҮҖҢҺ-]+", sentence) if t]
 
 
 def lessons_total_for(word_count: int) -> int:
@@ -302,6 +314,55 @@ def ex_repeat_after(target: dict) -> dict:
     return {"type": "repeat_after", "word": target}
 
 
+def with_sentence_audio(e: Optional[dict], target: dict) -> Optional[dict]:
+    """Вариант упражнения, где вместо слова звучит предложение с ним."""
+    if not e or not target.get("sentence_audio_url"):
+        return e
+    e = dict(e)
+    e["audio_url"] = target["sentence_audio_url"]
+    e["text_tt"] = target["sentence_tt"]
+    e["sentence_mode"] = True
+    return e
+
+
+def ex_build_sentence(target: dict, pool: list[dict]) -> Optional[dict]:
+    """Собери предложение из слов-плиток (с ловушками)."""
+    from ..tts import cached_tts_url
+    if not target.get("sentence_tt") or not target.get("sentence_audio_url"):
+        return None
+    tokens = sentence_tokens(target["sentence_tt"])
+    if not 2 <= len(tokens) <= 5:
+        return None
+    lower_tokens = {t.lower() for t in tokens}
+    audio_by_tt = {p["text_tt"].lower(): p["audio_url"] for p in pool if p["audio_url"]}
+
+    def token_audio(tok: str) -> Optional[str]:
+        return audio_by_tt.get(tok.lower()) or cached_tts_url(tok.lower())
+
+    correct = [{"text": t, "audio_url": token_audio(t)} for t in tokens]
+    # ловушки: 1-2 однословных слова темы, не из предложения и не созвучные с целью
+    cands = [p for p in pool
+             if " " not in p["text_tt"] and p["audio_url"]
+             and p["text_tt"].lower() not in lower_tokens
+             and not confusable(p["text_tt"], target["text_tt"])]
+    random.shuffle(cands)
+    traps = [{"text": p["text_tt"], "audio_url": p["audio_url"]} for p in cands[:2]]
+    if not traps:
+        return None
+    tiles = correct + traps
+    random.shuffle(tiles)
+    return {
+        "type": "build_sentence",
+        "word_id": target["id"],
+        "image_url": target["image_url"],
+        "emoji": target["emoji"],
+        "audio_url": target["sentence_audio_url"],
+        "sentence_ru": target["sentence_ru"],
+        "tokens": tokens,
+        "tiles": tiles,
+    }
+
+
 def _distinct_visual_pick(words: list[dict], n: int, seen: set[str]) -> Optional[list[dict]]:
     shuffled = list(words)
     random.shuffle(shuffled)
@@ -353,7 +414,8 @@ def _no_three_in_a_row(items: list[dict]) -> list[dict]:
 
 def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[dict],
                     sort_payload: Optional[dict] = None, phrase_mode: bool = False,
-                    allow_build: bool = False) -> list[dict]:
+                    allow_build: bool = False, sentences_ok: bool = False,
+                    late_unit: bool = False) -> list[dict]:
     """Урок: чередование «карточка → сразу практика» + разнообразное закрепление.
     phrase_mode: тема из фраз — только карточки, звучание и повторение за диктором.
     allow_build: «собери слово» — только с 3-го урока юнита (для начала это слишком сложно)."""
@@ -382,6 +444,8 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
         random.shuffle(yn_candidates)
         for w in yn_candidates[:1]:
             e = ex_yes_no(w, pool)
+            if e and sentences_ok and w.get("sentence_audio_url") and random.random() < 0.5:
+                e = with_sentence_audio(e, w)  # «Бу — эт» вместо одиночного слова
             if e:
                 practice.append(e)
         e = ex_memory(new_words if len(new_words) >= 3 else pool)
@@ -394,15 +458,32 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             if e:
                 practice.append(e)
         if allow_build:
-            for w in random.sample(new_words, len(new_words)):
-                e = ex_build_word(w)
-                if e:
-                    practice.append(e)
-                    break
+            built = None
+            if sentences_ok and random.random() < 0.5:
+                for w in random.sample(new_words, len(new_words)):
+                    built = ex_build_sentence(w, pool)
+                    if built:
+                        break
+            if not built:
+                for w in random.sample(new_words, len(new_words)):
+                    built = ex_build_word(w)
+                    if built:
+                        break
+            if built:
+                practice.append(built)
         voiced_new = [w for w in new_words if w["audio_url"]]
         random.shuffle(voiced_new)
-        for w in voiced_new[:2]:  # продукция: два «повтори за диктором»
-            practice.append(ex_repeat_after(w))
+        for i, w in enumerate(voiced_new[:2]):  # продукция: два «повтори за диктором»
+            if late_unit and i == 1 and w.get("sentence_audio_url"):
+                s = dict(w)
+                s["text_tt"] = w["sentence_tt"]
+                s["audio_url"] = w["sentence_audio_url"]
+                s["text_ru"] = w["sentence_ru"] or w["text_ru"]
+                e = ex_repeat_after(s)
+                e["sentence_mode"] = True
+                practice.append(e)
+            else:
+                practice.append(ex_repeat_after(w))
         if sort_payload:
             practice.append(sort_payload)
 
@@ -591,12 +672,17 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                 kind = i % 4
                 if kind == 0:
                     e = ex_pick_image(w, pool)
+                    # в боссе часть заданий звучит предложением — понимание речи, не только слова
+                    if e and w.get("sentence_audio_url") and random.random() < 0.4:
+                        e = with_sentence_audio(e, w)
                 elif kind == 1:
                     e = ex_yes_no(w, pool)
+                    if e and w.get("sentence_audio_url") and random.random() < 0.4:
+                        e = with_sentence_audio(e, w)
                 elif kind == 2:
                     e = ex_pick_word_audio(w, pool)
                 else:
-                    e = ex_build_word(w) or ex_pick_image(w, pool)
+                    e = ex_build_sentence(w, pool) or ex_build_word(w) or ex_pick_image(w, pool)
             if e:
                 items.append(e)
         if not phrase_mode:
@@ -626,7 +712,9 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                 sort_payload = ex_sort_baskets(theme, pool, other, other_words)
 
         items = build_exercises(new_words, pool, review, sort_payload,
-                                phrase_mode=phrase_mode, allow_build=lesson_no >= 3)
+                                phrase_mode=phrase_mode, allow_build=lesson_no >= 3,
+                                sentences_ok=lesson_no >= 2,
+                                late_unit=(theme.order_index or 0) >= 14)
 
     if len(items) < 3:
         # страховка: без озвучки/картинок упражнения могли не собраться — даём карточки
@@ -681,7 +769,8 @@ async def daily_lesson(db: Annotated[AsyncSession, Depends(get_db)], user: Annot
     }
     fresh = [w for w in pool if w["id"] not in seen_ids][:3]
 
-    items = build_exercises(fresh, pool, review, phrase_mode=current_unit.title_ru in PHRASE_THEMES)
+    items = build_exercises(fresh, pool, review, phrase_mode=current_unit.title_ru in PHRASE_THEMES,
+                            sentences_ok=True)
     if not items:
         raise HTTPException(status_code=400, detail="Не удалось собрать задание")
 

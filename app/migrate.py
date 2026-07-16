@@ -14,6 +14,9 @@ _COLUMNS: dict[str, dict[str, str]] = {
         "emoji": "VARCHAR(16)",
         "tts_url": "VARCHAR(255)",
         "image_flag": "INTEGER DEFAULT 0",
+        "sentence_tt": "VARCHAR(255)",
+        "sentence_ru": "VARCHAR(255)",
+        "sentence_audio_url": "VARCHAR(255)",
     },
     "user_progress": {
         "strength": "INTEGER DEFAULT 0",

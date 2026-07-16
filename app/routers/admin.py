@@ -338,6 +338,112 @@ async def tts_all(
     return {"done": done, "remaining_errors": errors}
 
 
+@router.post("/import_sentences")
+async def import_sentences(
+    payload: dict = Body(...),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Массовая загрузка предложений: {"items": [{"id", "sentence_tt", "sentence_ru"}]}."""
+    done, skipped = 0, 0
+    for item in payload.get("items", []):
+        word = (await db.execute(select(Word).where(Word.id == item.get("id")))).scalar_one_or_none()
+        if not word:
+            skipped += 1
+            continue
+        st = (item.get("sentence_tt") or "").strip() or None
+        word.sentence_tt = st
+        word.sentence_ru = (item.get("sentence_ru") or "").strip() or None
+        word.sentence_audio_url = None  # переозвучить
+        done += 1
+    await db.commit()
+    return {"done": done, "skipped": skipped}
+
+
+@router.post("/sentence/{word_id}")
+async def set_sentence(
+    word_id: int,
+    payload: dict = Body(...),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word:
+        raise HTTPException(status_code=404, detail="Слово не найдено")
+    word.sentence_tt = (payload.get("sentence_tt") or "").strip() or None
+    word.sentence_ru = (payload.get("sentence_ru") or "").strip() or None
+    word.sentence_audio_url = None
+    if word.sentence_tt:
+        try:
+            word.sentence_audio_url = await synthesize_to_file(word.sentence_tt)
+        except Exception:
+            pass  # озвучится через tts_sentences_all
+    await db.commit()
+    return {"word_id": word.id, "sentence_tt": word.sentence_tt,
+            "sentence_ru": word.sentence_ru, "sentence_audio_url": word.sentence_audio_url}
+
+
+@router.post("/tts_sentence/{word_id}")
+async def tts_sentence(
+    word_id: int,
+    voice: str = "alsu",
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    if voice not in ("alsu", "almaz"):
+        raise HTTPException(status_code=400, detail="voice: alsu или almaz")
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word or not word.sentence_tt:
+        raise HTTPException(status_code=404, detail="Нет слова или предложения")
+    try:
+        word.sentence_audio_url = await synthesize_to_file(word.sentence_tt, speaker=voice)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка TTS: {e}")
+    await db.commit()
+    return {"word_id": word.id, "sentence_audio_url": word.sentence_audio_url}
+
+
+@router.post("/tts_sentences_all")
+async def tts_sentences_all(
+    limit: int = 500,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    words = (await db.execute(
+        select(Word).where(Word.sentence_tt.is_not(None), Word.sentence_audio_url.is_(None)).limit(limit)
+    )).scalars().all()
+    done, errors = 0, []
+    for w in words:
+        try:
+            w.sentence_audio_url = await synthesize_to_file(w.sentence_tt)
+            done += 1
+            await db.commit()
+        except Exception as e:
+            errors.append(f"{w.text_tt}: {e}")
+            if len(errors) >= 5:
+                break
+    return {"done": done, "remaining_errors": errors}
+
+
+@router.post("/tts_tokens")
+async def tts_tokens(
+    payload: dict = Body(...),
+    admin = Depends(get_current_admin),
+):
+    """Озвучка отдельных токенов (служебные слова для конструктора предложений)."""
+    done, errors = 0, []
+    for tok in payload.get("tokens", [])[:200]:
+        tok = (tok or "").strip().lower()
+        if not tok:
+            continue
+        try:
+            await synthesize_to_file(tok)
+            done += 1
+        except Exception as e:
+            errors.append(f"{tok}: {e}")
+    return {"done": done, "errors": errors}
+
+
 @router.post("/word_flag/{word_id}")
 async def word_flag(
     word_id: int,

@@ -34,6 +34,7 @@
   // Если файла нет — фолбэк на браузерный синтез (он для русского звучит приемлемо).
   const INSTR_AUDIO = {
     'Новое слово!': 'novoe_slovo',
+    'Собери предложение из слов': 'soberi_predlozhenie',
     'Послушай и найди картинку': 'najdi_kartinku',
     'Это правильная картинка?': 'pravilnaya_kartinka',
     'Найди пары': 'najdi_pary',
@@ -203,19 +204,127 @@
   // ---------- упражнения ----------
   // каждый рендерер: (item, screen, done) => void; done({scored, ok})
 
+  function sentenceLine(w) {
+    // предложение с подсветкой целевого слова
+    const box = el('div', '');
+    box.style.cssText = 'text-align:center;margin-top:10px;background:#fff7ed;border-radius:14px;padding:10px 14px;';
+    const line = el('div', '');
+    line.style.cssText = 'font-size:20px;font-weight:600;';
+    const s = w.sentence_tt;
+    const idx = s.toLowerCase().indexOf(w.text_tt.toLowerCase());
+    if (idx >= 0) {
+      line.appendChild(document.createTextNode(s.slice(0, idx)));
+      const b = el('b', '', s.slice(idx, idx + w.text_tt.length));
+      b.style.color = '#ea580c';
+      line.appendChild(b);
+      line.appendChild(document.createTextNode(s.slice(idx + w.text_tt.length)));
+    } else {
+      line.textContent = s;
+    }
+    box.appendChild(line);
+    if (w.sentence_ru) {
+      const ru = el('div', '', w.sentence_ru);
+      ru.style.cssText = 'font-size:14px;color:#92400e;margin-top:2px;';
+      box.appendChild(ru);
+    }
+    return box;
+  }
+
   function rCard(item, screen, done) {
     const w = item.word;
     screen.appendChild(el('div', 'instr', '🆕 Новое слово'));
     const vis = el('div', 'big-visual'); vis.appendChild(visual(w)); screen.appendChild(vis);
     screen.appendChild(el('div', 'word-big', w.text_tt));
     screen.appendChild(el('div', 'word-small', w.text_ru));
+    if (w.sentence_tt) screen.appendChild(sentenceLine(w));
     const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;align-items:center;margin-top:14px;';
     const play = el('button', 'play-btn', '🔊');
-    play.onclick = () => playAudio(w.audio_url);
+    play.onclick = async () => {
+      await playAudio(w.audio_url);
+      if (w.sentence_audio_url) { await sleep(350); await playAudio(w.sentence_audio_url); }
+    };
     const next = el('button', 'kid-btn', 'Дальше ➜');
     next.onclick = () => done({ scored: false });
     row.appendChild(play); row.appendChild(next); screen.appendChild(row);
-    speakThenPlay('Новое слово!', w.audio_url);
+    (async () => {
+      await speakThenPlay('Новое слово!', w.audio_url);
+      if (w.sentence_audio_url) { await sleep(400); await playAudio(w.sentence_audio_url); }
+    })();
+  }
+
+  function rBuildSentence(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🧱 Собери предложение из слов'));
+    const vis = el('div', 'big-visual'); vis.appendChild(visual(item)); screen.appendChild(vis);
+    const playRow = el('div', ''); playRow.style.cssText = 'display:flex;justify-content:center;';
+    const play = el('button', 'play-btn small', '🔊');
+    play.onclick = () => playAudio(item.audio_url);
+    playRow.appendChild(play); screen.appendChild(playRow);
+
+    const slots = el('div', 'slots'); screen.appendChild(slots);
+    const tray = el('div', 'letters'); tray.style.flexWrap = 'wrap'; screen.appendChild(tray);
+    const checkBtn = el('button', 'kid-btn', '✔ Готово');
+    checkBtn.style.marginTop = '10px';
+    screen.appendChild(checkBtn);
+
+    const placed = []; // {tile, btn}
+    const slotEls = item.tokens.map(() => {
+      const s = el('div', 'slot', '');
+      s.style.cssText = 'min-width:64px;width:auto;padding:0 10px;font-size:20px;';
+      slots.appendChild(s);
+      return s;
+    });
+
+    function refresh() {
+      slotEls.forEach((s, i) => {
+        s.textContent = placed[i] ? placed[i].tile.text : '';
+        s.classList.toggle('filled', !!placed[i]);
+      });
+      checkBtn.disabled = placed.length !== item.tokens.length;
+    }
+
+    let locked = false;
+    item.tiles.forEach(tile => {
+      const b = el('button', 'letter-tile', tile.text);
+      b.style.cssText = 'width:auto;min-width:64px;padding:0 12px;font-size:19px;height:52px;';
+      b.onclick = () => {
+        if (locked) return;
+        playAudio(tile.audio_url);
+        if (b.dataset.used === '1') return;
+        if (placed.length >= item.tokens.length) return;
+        b.dataset.used = '1'; b.style.opacity = '.35';
+        placed.push({ tile, btn: b });
+        refresh();
+      };
+      tray.appendChild(b);
+    });
+
+    // тап по заполненному слоту — вернуть слово в лоток
+    slotEls.forEach((s, i) => {
+      s.onclick = () => {
+        if (locked || !placed[i]) return;
+        placed[i].btn.dataset.used = ''; placed[i].btn.style.opacity = '1';
+        placed.splice(i, 1);
+        refresh();
+      };
+    });
+
+    checkBtn.onclick = async () => {
+      if (locked || placed.length !== item.tokens.length) return;
+      locked = true;
+      const ok = placed.every((p, i) => p.tile.text.toLowerCase() === item.tokens[i].toLowerCase());
+      reportAnswer(item.word_id, ok, 'build_sentence');
+      if (!ok) {
+        // показать правильный порядок и озвучить предложение
+        slotEls.forEach((s, i) => { s.textContent = item.tokens[i]; s.classList.add('filled'); s.style.borderColor = '#16a34a'; });
+      }
+      feedback(ok); await playFx(ok);
+      await playAudio(item.audio_url);
+      await sleep(400);
+      done({ scored: true, ok });
+    };
+
+    refresh();
+    speakThenPlay('Собери предложение из слов', item.audio_url);
   }
 
   function rPickImage(item, screen, done) {
@@ -224,7 +333,9 @@
     const play = el('button', 'play-btn small', '🔊');
     play.onclick = () => playAudio(item.audio_url);
     head.appendChild(play);
-    head.appendChild(el('div', 'word-big', item.text_tt));
+    const tw = el('div', 'word-big', item.text_tt);
+    if ((item.text_tt || '').length > 14) tw.style.fontSize = '24px'; // предложение — шрифт меньше
+    head.appendChild(tw);
     screen.appendChild(head);
     const grid = el('div', 'tile-grid'); screen.appendChild(grid);
     let locked = false;
@@ -254,7 +365,9 @@
     const play = el('button', 'play-btn small', '🔊');
     play.onclick = () => playAudio(item.audio_url);
     head.appendChild(play);
-    head.appendChild(el('div', 'word-big', item.text_tt));
+    const tw2 = el('div', 'word-big', item.text_tt);
+    if ((item.text_tt || '').length > 14) tw2.style.fontSize = '24px';
+    head.appendChild(tw2);
     screen.appendChild(head);
     const vis = el('div', 'big-visual'); vis.appendChild(visual(item.shown)); screen.appendChild(vis);
     const row = el('div', 'yn-row');
@@ -477,9 +590,11 @@
 
   function rRepeatAfter(item, screen, done) {
     const w = item.word;
-    screen.appendChild(el('div', 'instr', '🎤 Повтори за диктором!'));
+    screen.appendChild(el('div', 'instr', item.sentence_mode ? '🎤 Повтори предложение!' : '🎤 Повтори за диктором!'));
     const vis = el('div', 'big-visual'); vis.appendChild(visual(w)); screen.appendChild(vis);
-    screen.appendChild(el('div', 'word-big', w.text_tt));
+    const twr = el('div', 'word-big', w.text_tt);
+    if ((w.text_tt || '').length > 14) twr.style.fontSize = '24px';
+    screen.appendChild(twr);
     const row = el('div', ''); row.style.cssText = 'display:flex;gap:16px;align-items:center;justify-content:center;margin-top:14px;';
     const play = el('button', 'play-btn', '🔊');
     play.onclick = () => playAudio(w.audio_url);
@@ -553,6 +668,7 @@
     sort_baskets: rSortBaskets,
     pick_word_audio: rPickWordAudio,
     build_word: rBuildWord,
+    build_sentence: rBuildSentence,
     repeat_after: rRepeatAfter,
   };
 

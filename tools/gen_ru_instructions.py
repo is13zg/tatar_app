@@ -31,6 +31,7 @@ INSTRUCTIONS = {
     "razlozhi_po_korzinkam": "Разложи по корзинкам",
     "vyberi_knopku": "Выбери кнопку со словом с картинки",
     "soberi_slovo": "Собери слово из букв",
+    "soberi_predlozhenie": "Собери предложение из слов",
     "povtori_za_diktorom": "Повтори за диктором",
     "molodec": "Молодец!",
     "molodec_otlichno": "Молодец! Отлично!",
