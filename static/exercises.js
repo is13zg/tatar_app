@@ -493,6 +493,12 @@
     screen.appendChild(hint);
 
     let recorder = null, chunks = [], myUrl = null;
+    // на http-адресе браузер вообще не даёт доступ к микрофону (нужен https)
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      mic.style.display = 'none';
+      hint.textContent = 'Послушай диктора и повтори вслух! (запись голоса заработает на https-версии сайта)';
+      showNext();
+    }
     mic.onclick = async () => {
       if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
       try {
