@@ -97,6 +97,44 @@ body {
 .yn-yes { background: var(--good); }
 .yn-no { background: var(--bad); }
 
+/* пузыри */
+.bubble-box { position: relative; width: 100%; height: min(52vh, 380px); }
+.bubble {
+  position: absolute; width: 38%; max-width: 150px; aspect-ratio: 1/1;
+  border-radius: 50%; border: 4px solid rgba(139, 92, 246, .5); background: rgba(224, 242, 254, .8);
+  display: grid; place-items: center; overflow: hidden; cursor: pointer; padding: 8px;
+  box-shadow: inset -6px -8px 14px rgba(139, 92, 246, .15), var(--shadow);
+  animation: bubbleFloat 3s ease-in-out infinite alternate;
+}
+.bubble img { width: 82%; height: 82%; object-fit: cover; border-radius: 50%; }
+.bubble .emoji { font-size: clamp(40px, 12vw, 64px); }
+@keyframes bubbleFloat { from { transform: translateY(0); } to { transform: translateY(-16px); } }
+.bubble-pop { animation: bubblePop .3s forwards !important; }
+@keyframes bubblePop { to { transform: scale(1.6); opacity: 0; } }
+.bubble-shake { animation: shake .4s !important; }
+
+/* кротовые норки */
+.holes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; width: 100%; }
+.hole {
+  aspect-ratio: 4/3; border-radius: 18px; background: radial-gradient(ellipse at 50% 80%, #7c5a3c 0%, #5b422c 60%, #46331f 100%);
+  display: grid; place-items: center; overflow: hidden; cursor: pointer; border: 4px solid #8b6a48;
+}
+.hole img { width: 70%; height: 80%; object-fit: cover; border-radius: 12px; }
+.hole .emoji { font-size: clamp(44px, 13vw, 68px); }
+.mole-up { animation: moleUp .25s; }
+@keyframes moleUp { from { transform: translateY(70%); } to { transform: translateY(0); } }
+.hole-good { box-shadow: 0 0 0 5px var(--good); }
+.hole-bad { box-shadow: 0 0 0 5px var(--bad); }
+
+/* занавес «кто убежал» */
+.curtain { position: relative; }
+.curtain::after {
+  content: '🎪'; position: absolute; inset: 0; background: #c4b5fd;
+  display: grid; place-items: center; font-size: 40px; border-radius: 16px;
+  animation: curtainIn .3s;
+}
+@keyframes curtainIn { from { opacity: 0; } to { opacity: 1; } }
+
 /* memory */
 .mem-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; }
 .mem-card {

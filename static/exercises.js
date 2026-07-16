@@ -39,6 +39,11 @@
     'Кто прячется в тени? Нажми!': 'kto_v_teni',
     'Раскрась картинку! Нажимай!': 'raskras_kartinku',
     'Помоги вырасти! Нажимай!': 'pomogi_vyrasti',
+    'Лопни пузырь со словом!': 'lopni_puzyr',
+    'Покорми Акбая!': 'pokormi_akbaya',
+    'Запомни, кто здесь!': 'zapomni_kto',
+    'Кто убежал? Найди!': 'kto_ubezhal',
+    'Лови только то, что я называю!': 'lovi_tolko',
     'Послушай и найди картинку': 'najdi_kartinku',
     'Это правильная картинка?': 'pravilnaya_kartinka',
     'Найди пары': 'najdi_pary',
@@ -243,13 +248,19 @@
     if (w.sentence_tt) screen.appendChild(sentenceLine(w));
     const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;align-items:center;margin-top:14px;';
     const play = el('button', 'play-btn', '🔊');
-    play.onclick = async () => {
-      await playAudio(w.audio_url);
-      if (w.sentence_audio_url) { await sleep(350); await playAudio(w.sentence_audio_url); }
-    };
+    play.title = 'Слово';
+    play.onclick = () => playAudio(w.audio_url);
+    row.appendChild(play);
+    if (w.sentence_audio_url) {
+      const sp = el('button', 'play-btn', '💬');
+      sp.title = 'Предложение';
+      sp.style.background = '#0ea5e9';
+      sp.onclick = () => playAudio(w.sentence_audio_url);
+      row.appendChild(sp);
+    }
     const next = el('button', 'kid-btn', 'Дальше ➜');
     next.onclick = () => done({ scored: false });
-    row.appendChild(play); row.appendChild(next); screen.appendChild(row);
+    row.appendChild(next); screen.appendChild(row);
     (async () => {
       await speakThenPlay('Новое слово!', w.audio_url);
       if (w.sentence_audio_url) { await sleep(400); await playAudio(w.sentence_audio_url); }
@@ -267,13 +278,19 @@
     if (w.sentence_tt) screen.appendChild(sentenceLine(w));
     const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;align-items:center;margin-top:12px;';
     const play = el('button', 'play-btn', '🔊');
-    play.onclick = async () => {
-      await playAudio(w.audio_url);
-      if (w.sentence_audio_url) { await sleep(350); await playAudio(w.sentence_audio_url); }
-    };
+    play.title = 'Слово';
+    play.onclick = () => playAudio(w.audio_url);
+    row.appendChild(play);
+    if (w.sentence_audio_url) {
+      const sp = el('button', 'play-btn', '💬');
+      sp.title = 'Предложение';
+      sp.style.background = '#0ea5e9';
+      sp.onclick = () => playAudio(w.sentence_audio_url);
+      row.appendChild(sp);
+    }
     const next = el('button', 'kid-btn', 'Дальше ➜');
     next.onclick = () => done({ scored: false });
-    row.appendChild(play); row.appendChild(next); screen.appendChild(row);
+    row.appendChild(next); screen.appendChild(row);
   }
 
   function rSurpriseBox(item, screen, done) {
@@ -335,12 +352,14 @@
     v.style.cursor = 'pointer';
     stage.appendChild(v);
     screen.appendChild(stage);
-    let finished = false;
+    let finished = false, busy = false;
     v.onclick = async () => {
-      if (finished || !audioEl.paused) return; // звуки строго по очереди
+      if (finished || busy) return; // звуки строго по очереди
+      busy = true;
       step = Math.min(step + 1, steps.length - 1);
       v.style.filter = `grayscale(${steps[step]})`;
       await playAudio(w.audio_url);
+      busy = false;
       if (step === steps.length - 1 && !finished) {
         finished = true;
         confetti();
@@ -362,12 +381,14 @@
     v.style.cursor = 'pointer';
     stage.appendChild(v);
     screen.appendChild(stage);
-    let finished = false;
+    let finished = false, busy = false;
     stage.onclick = async () => {
-      if (finished || !audioEl.paused) return;
+      if (finished || busy) return;
+      busy = true;
       step = Math.min(step + 1, scales.length - 1);
       v.style.transform = `scale(${scales[step]})`;
       await playAudio(w.audio_url);
+      busy = false;
       if (step === scales.length - 1 && !finished) {
         finished = true;
         confetti();
@@ -375,6 +396,187 @@
       }
     };
     speakThenPlay('Помоги вырасти! Нажимай!', w.audio_url);
+  }
+
+  // ---- вторая волна мини-игр ----
+
+  function rBubbles(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🫧 Лопни пузырь со словом!'));
+    const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:8px;';
+    const play = el('button', 'play-btn small', '🔊');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    const tw = el('div', 'word-big', item.text_tt);
+    if ((item.text_tt || '').length > 14) tw.style.fontSize = '24px';
+    head.appendChild(tw);
+    screen.appendChild(head);
+    const box = el('div', 'bubble-box'); screen.appendChild(box);
+    let locked = false;
+    shuffled(item.options).forEach((opt, i) => {
+      const b = el('button', 'bubble');
+      b.appendChild(visual(opt));
+      b.style.left = (6 + (i % 2) * 48 + Math.random() * 8) + '%';
+      b.style.top = (4 + Math.floor(i / 2) * 46 + Math.random() * 6) + '%';
+      b.style.animationDuration = (2.6 + Math.random() * 1.6) + 's';
+      b.style.animationDelay = (Math.random() * 1.2) + 's';
+      b.onclick = async () => {
+        if (locked) return;
+        const ok = opt.id === item.word_id;
+        if (!ok) { b.classList.add('bubble-shake'); setTimeout(() => b.classList.remove('bubble-shake'), 500); reportAnswer(item.word_id, false, 'bubbles'); locked = true; feedback(false); await playFx(false); [...box.children].forEach(c => { if (c._id === item.word_id) c.classList.add('bubble-pop'); }); await sleep(600); done({ scored: true, ok: false }); return; }
+        locked = true;
+        b.classList.add('bubble-pop');
+        reportAnswer(item.word_id, true, 'bubbles');
+        feedback(true); await playFx(true); await sleep(500);
+        done({ scored: true, ok: true });
+      };
+      b._id = opt.id;
+      box.appendChild(b);
+    });
+    speakThenPlay('Лопни пузырь со словом!', item.audio_url);
+  }
+
+  function rFeed(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🐶 Покорми Акбая!'));
+    const stage = el('div', ''); stage.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;margin:6px 0;';
+    const dog = el('div', '', '🐶');
+    dog.style.cssText = 'font-size:clamp(70px,20vw,110px);cursor:pointer;line-height:1.1;';
+    dog.onclick = () => playAudio(item.audio_url);
+    const bubble = el('div', '', '🔊 ' + item.text_tt);
+    bubble.style.cssText = 'background:white;border:3px solid #e5e7eb;border-radius:16px;padding:8px 12px;font-weight:700;font-size:18px;';
+    stage.appendChild(dog); stage.appendChild(bubble);
+    screen.appendChild(stage);
+    const grid = el('div', 'tile-grid'); grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    screen.appendChild(grid);
+    let locked = false;
+    shuffled(item.options).forEach(opt => {
+      const t = el('button', 'tile');
+      t.appendChild(visual(opt));
+      t.onclick = async () => {
+        if (locked) return; locked = true;
+        const ok = opt.id === item.word_id;
+        reportAnswer(item.word_id, ok, 'feed');
+        if (ok) {
+          t.classList.add('good');
+          dog.textContent = '😋';
+          dog.style.transform = 'scale(1.2)';
+          feedback(true, 'Тәмле! 🎉'); await playFx(true);
+        } else {
+          t.classList.add('bad');
+          [...grid.children].forEach(c => { if (c._id === item.word_id) c.classList.add('good'); });
+          dog.textContent = '🐶';
+          feedback(false); await playFx(false);
+        }
+        await sleep(600);
+        done({ scored: true, ok });
+      };
+      t._id = opt.id;
+      grid.appendChild(t);
+    });
+    speakThenPlay('Покорми Акбая!', item.audio_url);
+  }
+
+  function rWhoRan(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🙈 Запомни, кто здесь!'));
+    const rowTop = el('div', 'tile-grid'); rowTop.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    screen.appendChild(rowTop);
+    const tiles = item.shown.map(w => {
+      const t = el('div', 'tile');
+      t.style.cursor = 'default';
+      t.appendChild(visual(w));
+      rowTop.appendChild(t);
+      return { t, w };
+    });
+    (async () => {
+      await speakRu('Запомни, кто здесь!');
+      for (const { t, w } of tiles) {
+        t.style.outline = '5px solid #fbbf24';
+        await playAudio(w.audio_url);
+        t.style.outline = 'none';
+        await sleep(150);
+      }
+      // занавес
+      tiles.forEach(({ t }) => t.classList.add('curtain'));
+      await sleep(1200);
+      tiles.forEach(({ t, w }) => {
+        if (w.id === item.missing_id) t.style.visibility = 'hidden';
+        t.classList.remove('curtain');
+      });
+      const instr = screen.querySelector('.instr');
+      if (instr) instr.textContent = '🙀 Кто убежал? Найди!';
+      speakRu('Кто убежал? Найди!');
+      const rowOpts = el('div', 'tile-grid'); rowOpts.style.gridTemplateColumns = 'repeat(2, 1fr)';
+      screen.appendChild(rowOpts);
+      let locked = false;
+      shuffled(item.options).forEach(opt => {
+        const b = el('button', 'tile');
+        b.appendChild(visual(opt));
+        b.onclick = async () => {
+          if (locked) return; locked = true;
+          const ok = opt.id === item.missing_id;
+          reportAnswer(item.word_id, ok, 'who_ran');
+          b.classList.add(ok ? 'good' : 'bad');
+          // беглец возвращается
+          tiles.forEach(({ t, w }) => { if (w.id === item.missing_id) t.style.visibility = 'visible'; });
+          const missing = item.shown.find(w => w.id === item.missing_id);
+          feedback(ok); await playFx(ok);
+          if (missing) await playAudio(missing.audio_url);
+          await sleep(300);
+          done({ scored: true, ok });
+        };
+        rowOpts.appendChild(b);
+      });
+    })();
+  }
+
+  function rMoles(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🕳️ Лови только: ' + item.text_tt));
+    const head = el('div', ''); head.style.cssText = 'display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:8px;';
+    const play = el('button', 'play-btn small', '🔊');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    screen.appendChild(head);
+    const field = el('div', 'holes'); screen.appendChild(field);
+    const holes = [0, 1, 2, 3].map(() => {
+      const h = el('div', 'hole');
+      field.appendChild(h);
+      return h;
+    });
+    let hits = 0, mistakes = 0, idx = 0, tappedThis = false;
+    async function round() {
+      if (idx >= item.seq.length) {
+        const ok = hits >= 2 && mistakes <= 1;
+        reportAnswer(item.word_id, ok, 'moles');
+        feedback(ok); await playFx(ok); await sleep(400);
+        done({ scored: true, ok });
+        return;
+      }
+      const step = item.seq[idx];
+      const hole = holes[step.hole];
+      hole.innerHTML = '';
+      const v = visual(step);
+      v.classList && v.classList.add('mole-up');
+      hole.appendChild(v);
+      tappedThis = false;
+      hole.onclick = () => {
+        if (tappedThis) return; tappedThis = true;
+        if (step.is_target) { hits++; hole.classList.add('hole-good'); }
+        else { mistakes++; hole.classList.add('hole-bad'); }
+        setTimeout(() => hole.classList.remove('hole-good', 'hole-bad'), 350);
+        hole.innerHTML = '';
+      };
+      await sleep(1700);
+      if (!tappedThis && step.is_target) mistakes++;  // прозевал цель
+      hole.onclick = null;
+      hole.innerHTML = '';
+      idx++;
+      await sleep(350);
+      round();
+    }
+    (async () => {
+      await speakRu('Лови только то, что я называю!');
+      await playAudio(item.audio_url);
+      round();
+    })();
   }
 
   function rBuildSentence(item, screen, done) {
@@ -799,6 +1001,10 @@
     build_word: rBuildWord,
     build_sentence: rBuildSentence,
     repeat_after: rRepeatAfter,
+    bubbles: rBubbles,
+    feed: rFeed,
+    who_ran: rWhoRan,
+    moles: rMoles,
   };
 
   // ---------- раннер ----------

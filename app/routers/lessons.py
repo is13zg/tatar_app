@@ -336,6 +336,94 @@ def ex_repeat_after(target: dict) -> dict:
     return {"type": "repeat_after", "word": target}
 
 
+# ---- вторая волна мини-игр (по отчёту геймдизайнера) ----
+
+def ex_bubbles(target: dict, pool: list[dict]) -> Optional[dict]:
+    """Пузыри: как pick_image, но цели плавают — лопни пузырь с названным словом."""
+    e = ex_pick_image(target, pool)
+    if not e:
+        return None
+    e = dict(e)
+    e["type"] = "bubbles"
+    return e
+
+
+def ex_feed(target: dict, pool: list[dict]) -> Optional[dict]:
+    """Покорми Акбая: щенок просит слово голосом — дай ему правильный предмет (из 3)."""
+    e = ex_pick_image(target, pool)
+    if not e:
+        return None
+    distractors = [o for o in e["options"] if o["id"] != target["id"]][:2]
+    options = distractors + [{"id": target["id"], "image_url": target["image_url"], "emoji": target["emoji"]}]
+    random.shuffle(options)
+    return {
+        "type": "feed",
+        "word_id": target["id"],
+        "text_tt": target["text_tt"],
+        "audio_url": target["audio_url"],
+        "options": options,
+    }
+
+
+def ex_who_ran(pool: list[dict]) -> Optional[dict]:
+    """Кто убежал: 3 картинки показываются и озвучиваются, одна исчезает — вспомни какая."""
+    cands = [w for w in pool if w["audio_url"] and w["text_tt"].lower() not in CATEGORY_TT]
+    seen: set[str] = set()
+    trio: list[dict] = []
+    random.shuffle(cands)
+    for w in cands:
+        k = visual_key(w)
+        if k in seen:
+            continue
+        seen.add(k)
+        trio.append(w)
+        if len(trio) == 3:
+            break
+    if len(trio) < 3:
+        return None
+    missing = random.choice(trio)
+    outsiders = [w for w in cands
+                 if w["id"] not in {t["id"] for t in trio}
+                 and visual_key(w) not in seen
+                 and not confusable(w["text_tt"], missing["text_tt"])]
+    if not outsiders:
+        return None
+    brief = lambda w: {"id": w["id"], "image_url": w["image_url"], "emoji": w["emoji"],
+                       "audio_url": w["audio_url"], "text_tt": w["text_tt"]}
+    options = [brief(missing), brief(random.choice(outsiders))]
+    random.shuffle(options)
+    return {
+        "type": "who_ran",
+        "word_id": missing["id"],
+        "shown": [brief(w) for w in trio],
+        "missing_id": missing["id"],
+        "options": options,
+    }
+
+
+def ex_moles(target: dict, pool: list[dict]) -> Optional[dict]:
+    """Кротовые норки (go/no-go): лови только названное слово, чужих пропускай."""
+    if not target["audio_url"] or target["text_tt"].lower() in CATEGORY_TT:
+        return None
+    others = [p for p in pool
+              if p["id"] != target["id"]
+              and visual_key(p) != visual_key(target)
+              and not confusable(p["text_tt"], target["text_tt"])]
+    if len(others) < 2:
+        return None
+    appearances = [target] * 3 + random.sample(others, min(4, len(others)))
+    random.shuffle(appearances)
+    seq = [{"id": w["id"], "image_url": w["image_url"], "emoji": w["emoji"],
+            "is_target": w["id"] == target["id"], "hole": random.randrange(4)} for w in appearances]
+    return {
+        "type": "moles",
+        "word_id": target["id"],
+        "text_tt": target["text_tt"],
+        "audio_url": target["audio_url"],
+        "seq": seq,
+    }
+
+
 def with_sentence_audio(e: Optional[dict], target: dict) -> Optional[dict]:
     """Вариант упражнения, где вместо слова звучит предложение с ним."""
     if not e or not target.get("sentence_audio_url"):
@@ -455,13 +543,22 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             if w["audio_url"]:
                 practice.append(ex_repeat_after(w))
     else:
-        # подача с немедленным закреплением: мини-игра подачи → выбор картинки на это же слово
-        # формат подачи ротируется (карточка/коробка/тень/раскраска/рост) — разнообразие с урока 1
+        # подача с немедленным закреплением: мини-игра подачи → закрепление на это же слово
+        # формат подачи ротируется (карточка/коробка/тень/раскраска/рост) — разнообразие с урока 1;
+        # закрепление со 2-го урока иногда становится «пузырями» или «покорми Акбая»
         start_fmt = random.randrange(len(PRESENTERS))
         for i, w in enumerate(new_words):
             presenter = PRESENTERS[(start_fmt + i) % len(PRESENTERS)]
             items.append(presenter(w))
-            e = ex_pick_image(w, pool)
+            e = None
+            if sentences_ok:
+                r = random.random()
+                if r < 0.25:
+                    e = ex_bubbles(w, pool)
+                elif r < 0.45:
+                    e = ex_feed(w, pool)
+            if not e:
+                e = ex_pick_image(w, pool)
             if e:
                 items.append(e)
         practice = []
@@ -496,6 +593,10 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                         break
             if built:
                 practice.append(built)
+        if allow_build and random.random() < 0.5:
+            e = ex_who_ran(pool)
+            if e:
+                practice.append(e)
         voiced_new = [w for w in new_words if w["audio_url"]]
         random.shuffle(voiced_new)
         for i, w in enumerate(voiced_new[:2]):  # продукция: два «повтори за диктором»
@@ -714,6 +815,10 @@ async def unit_lesson(theme_id: int, lesson_no: int,
             m = ex_memory(pool)
             if m:
                 items.append(m)
+            if random.random() < 0.6:  # «норки» — финальный тест на внимание
+                e = ex_moles(random.choice(pool), pool)
+                if e:
+                    items.append(e)
         random.shuffle(items)
     else:
         start = (lesson_no - 1) * NEW_WORDS_PER_LESSON
