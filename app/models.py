@@ -67,6 +67,7 @@ class UserProgress(Base):
     due_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     seen_count: Mapped[int] = mapped_column(Integer, default=0)
     correct_count: Mapped[int] = mapped_column(Integer, default=0)
+    first_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="progress")
     word: Mapped[Word] = relationship(back_populates="progress")

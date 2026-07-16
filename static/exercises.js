@@ -567,7 +567,16 @@
         ? await api('/lesson/daily')
         : await api(`/lesson/unit/${opts.themeId}/${opts.lessonNo}`);
     } catch (e) {
-      screen.innerHTML = '<div class="word-big">Ой! Не получилось загрузить урок 😔</div>';
+      let msg = 'Ой! Не получилось загрузить урок 😔';
+      try { const d = JSON.parse(e.message); if (d.detail) msg = d.detail; } catch (err) {}
+      screen.innerHTML = '';
+      screen.appendChild(el('div', 'sticker-award', '🦊'));
+      screen.appendChild(el('div', 'word-big', msg));
+      const home = el('button', 'kid-btn', '🏠 На главную');
+      home.style.marginTop = '14px';
+      home.onclick = () => location.href = '/static/pages/home.html';
+      screen.appendChild(home);
+      speakRuBrowser(msg);
       return;
     }
 

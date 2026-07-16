@@ -33,7 +33,10 @@ CATEGORY_TT = {"хайван", "кош", "бөҗәк", "ашамлык", "кие
 
 # Темы-«фразники»: слова учим только через карточки, звучание и повторение за диктором —
 # выбор картинки для «как дела?» бессмыслен.
-PHRASE_THEMES = {"Знакомство и общение"}
+PHRASE_THEMES = {"Привет и пока", "Давай знакомиться", "Вежливые слова"}
+
+# Дневной лимит НОВЫХ слов: методист — «очередь повторений растёт лавинообразно».
+NEW_WORDS_DAILY_LIMIT = 10
 
 # Пары тем с пересекающейся семантикой — сортировка по корзинам между ними неоднозначна.
 SORT_INCOMPATIBLE = {
@@ -45,7 +48,9 @@ SORT_INCOMPATIBLE = {
     frozenset({"Цифры", "Числа (10–19)"}),
     frozenset({"Цифры", "Десятки"}),
     frozenset({"Числа (10–19)", "Десятки"}),
-    frozenset({"Человек и тело", "Одежда и обувь"}),
+    frozenset({"Моё тело", "Одежда и обувь"}),
+    frozenset({"Лицо и голова", "Одежда и обувь"}),
+    frozenset({"Моё тело", "Лицо и голова"}),
     frozenset({"Время и сезоны", "Дни недели"}),
     frozenset({"Вещи в доме", "Школа и урок"}),
     frozenset({"Вещи в доме", "Продукты и напитки"}),
@@ -539,8 +544,25 @@ async def unit_lesson(theme_id: int, lesson_no: int,
     up = (await db.execute(select(UnitProgress).where(
         UnitProgress.user_id == user.id, UnitProgress.theme_id == theme_id
     ))).scalar_one_or_none()
-    if lesson_no > ((up.lessons_done if up else 0) or 0) + 1:
+    lessons_done = ((up.lessons_done if up else 0) or 0)
+    if lesson_no > lessons_done + 1:
         raise HTTPException(status_code=403, detail="Сначала пройди предыдущие уроки")
+
+    # дневной лимит новых слов: очередь повторений не должна расти лавинообразно
+    if lesson_no == lessons_done + 1:  # первое прохождение этого урока
+        kazan_day_start = (now_utc() + KAZAN_UTC_OFFSET).replace(hour=0, minute=0, second=0, microsecond=0) - KAZAN_UTC_OFFSET
+        new_today = (await db.execute(
+            select(func.count(UserProgress.id)).where(
+                UserProgress.user_id == user.id,
+                UserProgress.first_seen_at.is_not(None),
+                UserProgress.first_seen_at >= kazan_day_start,
+            )
+        )).scalar_one()
+        if new_today >= NEW_WORDS_DAILY_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail="На сегодня хватит новых слов! 🌟 Сделай задание дня или повтори пройденные уроки, а завтра продолжим",
+            )
 
     pool = [word_dto(w) for w in words]
     is_boss = lesson_no == total
@@ -686,7 +708,8 @@ async def lesson_answer(answer: LessonAnswer,
         select(UserProgress).where(UserProgress.user_id == user.id, UserProgress.word_id == answer.word_id)
     )).scalar_one_or_none()
     if not progress:
-        progress = UserProgress(user_id=user.id, word_id=answer.word_id, learned=False, strength=0)
+        progress = UserProgress(user_id=user.id, word_id=answer.word_id, learned=False, strength=0,
+                                first_seen_at=now_utc())
         db.add(progress)
     progress.seen_count = (progress.seen_count or 0) + 1
     progress.last_seen_at = now_utc()

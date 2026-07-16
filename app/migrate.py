@@ -19,6 +19,7 @@ _COLUMNS: dict[str, dict[str, str]] = {
         "due_at": "DATETIME",
         "seen_count": "INTEGER DEFAULT 0",
         "correct_count": "INTEGER DEFAULT 0",
+        "first_seen_at": "DATETIME",
     },
 }
 
