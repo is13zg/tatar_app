@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -52,7 +53,10 @@ async def on_startup() -> None:
         # ensure admin exists
         existing_admin = (await session.execute(select(User).where(User.username == "admin"))).scalar_one_or_none()
         if not existing_admin:
-            admin = User(username="admin", password_hash=get_password_hash("admin217"), is_admin=True)
+            # стартовый пароль задаётся окружением и НЕ хранится в коде;
+            # на живой базе admin уже существует — эта ветка только для пустой БД
+            bootstrap_password = os.getenv("ADMIN_PASSWORD", "change-me-" + os.urandom(4).hex())
+            admin = User(username="admin", password_hash=get_password_hash(bootstrap_password), is_admin=True)
             session.add(admin)
             await session.commit()
 
