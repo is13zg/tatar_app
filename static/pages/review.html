@@ -277,23 +277,42 @@
       src.connect(hp); hp.connect(off.destination); src.start();
       const rendered = await off.startRendering();
       let data = rendered.getChannelData(0);
-      // обрезка тишины по краям (порог 1.5% пика, отступ 60 мс)
-      let peak = 0;
-      for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
-      if (peak < 0.005) throw new Error('Слишком тихо — попробуйте ещё раз ближе к микрофону');
-      const thr = Math.max(0.015 * peak, 0.004);
-      let a = 0, b = data.length - 1;
-      while (a < b && Math.abs(data[a]) < thr) a++;
-      while (b > a && Math.abs(data[b]) < thr) b--;
-      const pad = Math.floor(0.06 * RATE);
-      a = Math.max(0, a - pad); b = Math.min(data.length - 1, b + pad);
+
+      // --- агрессивная обрезка пауз: энергия (RMS) по окнам 20 мс + оценка уровня шума ---
+      const WIN = Math.floor(0.02 * RATE);
+      const nWin = Math.floor(data.length / WIN);
+      if (nWin < 3) throw new Error('Слишком короткая запись');
+      const rms = new Float32Array(nWin);
+      for (let wI = 0; wI < nWin; wI++) {
+        let s = 0;
+        for (let i = wI * WIN; i < (wI + 1) * WIN; i++) s += data[i] * data[i];
+        rms[wI] = Math.sqrt(s / WIN);
+      }
+      const sorted = [...rms].sort((a, b) => a - b);
+      const noiseFloor = sorted[Math.floor(nWin * 0.1)];       // 10-й перцентиль = фон
+      const peakRms = sorted[nWin - 1];
+      if (peakRms < 0.01) throw new Error('Слишком тихо — попробуйте ещё раз ближе к микрофону');
+      // речь = заметно громче фона И не совсем шёпот относительно пика
+      const thr = Math.max(noiseFloor * 3, peakRms * 0.08);
+      let wa = 0, wb = nWin - 1;
+      while (wa < wb && rms[wa] < thr) wa++;
+      while (wb > wa && rms[wb] < thr) wb--;
+      // паддинг: 80 мс до начала речи, 140 мс после (естественное затухание)
+      let a = Math.max(0, wa * WIN - Math.floor(0.08 * RATE));
+      let b = Math.min(data.length - 1, (wb + 1) * WIN + Math.floor(0.14 * RATE));
       data = data.slice(a, b + 1);
-      // нормализация пика до 0.89
+
+      // нормализация пика до 0.89 + фейды 8 мс от щелчков
       let p2 = 0;
       for (let i = 0; i < data.length; i++) p2 = Math.max(p2, Math.abs(data[i]));
       const gain = p2 > 0 ? 0.89 / p2 : 1;
       const out = new Float32Array(data.length);
       for (let i = 0; i < data.length; i++) out[i] = data[i] * gain;
+      const FADE = Math.min(Math.floor(0.008 * RATE), Math.floor(out.length / 4));
+      for (let i = 0; i < FADE; i++) {
+        out[i] *= i / FADE;
+        out[out.length - 1 - i] *= i / FADE;
+      }
       return encodeWav(out, RATE);
     }
     window.__processRecording = processRecording; // для автотеста
