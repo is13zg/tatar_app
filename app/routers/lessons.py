@@ -20,11 +20,16 @@ from sqlalchemy import func
 router = APIRouter(prefix="/lesson", tags=["lessons"])
 
 NEW_WORDS_PER_LESSON = 4
-SRS_INTERVALS_DAYS = [0, 1, 2, 4, 7, 14]  # индекс = strength
+SRS_INTERVALS_DAYS = [0, 1, 2, 4, 7, 14, 30]  # индекс = strength
 MAX_STRENGTH = len(SRS_INTERVALS_DAYS) - 1
 KAZAN_UTC_OFFSET = timedelta(hours=3)
 STREAK_STICKERS = {3: "🔥", 7: "⭐", 14: "🏆", 30: "👑"}
-BOSS_QUESTIONS = 12
+BOSS_QUESTIONS = 10
+DAILY_REVIEW_LIMIT = 12
+
+# Слова-категории: в «выбери картинку» среди слов своей темы у них нет
+# единственного правильного ответа («хайван» среди четырёх животных).
+CATEGORY_TT = {"хайван", "кош", "бөҗәк", "ашамлык", "кием", "аяк киеме", "савыт-саба", "төс"}
 
 # Темы-«фразники»: слова учим только через карточки, звучание и повторение за диктором —
 # выбор картинки для «как дела?» бессмыслен.
@@ -187,7 +192,12 @@ def ex_card(w: dict) -> dict:
 def ex_pick_image(target: dict, pool: list[dict]) -> Optional[dict]:
     if not target["audio_url"]:
         return None  # упражнение звуковое — без озвучки бессмысленно
-    distractors = distinct_visual_sample(target, pool, 3)
+    if target["text_tt"].lower() in CATEGORY_TT:
+        return None  # у слова-категории нет единственной правильной картинки в своей теме
+    safe_pool = [p for p in pool
+                 if p["text_tt"].lower() not in CATEGORY_TT
+                 and not confusable(p["text_tt"], target["text_tt"])]
+    distractors = distinct_visual_sample(target, safe_pool, 3)
     if not distractors:
         return None
     options = distractors + [target]
@@ -204,10 +214,15 @@ def ex_pick_image(target: dict, pool: list[dict]) -> Optional[dict]:
 def ex_yes_no(target: dict, pool: list[dict]) -> Optional[dict]:
     if not target["audio_url"]:
         return None
+    if target["text_tt"].lower() in CATEGORY_TT:
+        return None
     is_match = random.random() < 0.5
     shown = target
     if not is_match:
-        others = distinct_visual_sample(target, pool, 1)
+        safe_pool = [p for p in pool
+                     if p["text_tt"].lower() not in CATEGORY_TT
+                     and not confusable(p["text_tt"], target["text_tt"])]
+        others = distinct_visual_sample(target, safe_pool, 1)
         if not others:
             is_match = True  # нет визуально отличного «чужого» — показываем правильную картинку
         else:
@@ -319,14 +334,30 @@ def ex_sort_baskets(theme_a: Theme, words_a: list[dict], theme_b: Theme, words_b
     }
 
 
-def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[dict],
-                    sort_payload: Optional[dict] = None, phrase_mode: bool = False) -> list[dict]:
-    """Стандартный набор упражнений урока: подача + разнообразная практика.
-    phrase_mode: тема из фраз — только карточки, звучание и повторение за диктором."""
-    items: list[dict] = [ex_card(w) for w in new_words]
+def _no_three_in_a_row(items: list[dict]) -> list[dict]:
+    """Разбавить последовательность: не больше двух одинаковых типов подряд."""
+    result = list(items)
+    for i in range(2, len(result)):
+        if result[i]["type"] == result[i - 1]["type"] == result[i - 2]["type"]:
+            for j in range(i + 1, len(result)):
+                if result[j]["type"] != result[i]["type"]:
+                    result[i], result[j] = result[j], result[i]
+                    break
+    return result
 
-    practice: list[dict] = []
+
+def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[dict],
+                    sort_payload: Optional[dict] = None, phrase_mode: bool = False,
+                    allow_build: bool = False) -> list[dict]:
+    """Урок: чередование «карточка → сразу практика» + разнообразное закрепление.
+    phrase_mode: тема из фраз — только карточки, звучание и повторение за диктором.
+    allow_build: «собери слово» — только с 3-го урока юнита (для начала это слишком сложно)."""
+    items: list[dict] = []
+
     if phrase_mode:
+        for w in new_words:
+            items.append(ex_card(w))
+        practice: list[dict] = []
         for w in new_words:
             e = ex_pick_word_audio(w, pool)
             if e:
@@ -335,36 +366,42 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             if w["audio_url"]:
                 practice.append(ex_repeat_after(w))
     else:
+        # подача с немедленным закреплением: карточка → выбор картинки на это же слово
         for w in new_words:
+            items.append(ex_card(w))
             e = ex_pick_image(w, pool)
             if e:
-                practice.append(e)
-        for w in random.sample(new_words, min(2, len(new_words))):
+                items.append(e)
+        practice = []
+        yn_candidates = [w for w in new_words]
+        random.shuffle(yn_candidates)
+        for w in yn_candidates[:1]:
             e = ex_yes_no(w, pool)
             if e:
                 practice.append(e)
         e = ex_memory(new_words if len(new_words) >= 3 else pool)
         if e:
             practice.append(e)
-        for w in random.sample(new_words, min(2, len(new_words))):
+        pwa_candidates = [w for w in new_words]
+        random.shuffle(pwa_candidates)
+        for w in pwa_candidates[:1]:
             e = ex_pick_word_audio(w, pool)
             if e:
                 practice.append(e)
-        built = 0
-        for w in new_words:
-            if built >= 1:
-                break
-            e = ex_build_word(w)
-            if e:
-                practice.append(e)
-                built += 1
+        if allow_build:
+            for w in random.sample(new_words, len(new_words)):
+                e = ex_build_word(w)
+                if e:
+                    practice.append(e)
+                    break
         voiced_new = [w for w in new_words if w["audio_url"]]
-        if voiced_new:
-            practice.append(ex_repeat_after(random.choice(voiced_new)))
+        random.shuffle(voiced_new)
+        for w in voiced_new[:2]:  # продукция: два «повтори за диктором»
+            practice.append(ex_repeat_after(w))
         if sort_payload:
             practice.append(sort_payload)
 
-    # повторение прошлых слов вперемешку
+    # повторение прошлых слов вперемешку (максимум 2 в юнит-уроке — основной канал повторения это задание дня)
     for w in review_words:
         if w.get("phrase"):
             if w["audio_url"]:
@@ -378,7 +415,7 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             practice.append(e)
 
     random.shuffle(practice)
-    return items + practice
+    return items + _no_three_in_a_row(practice)
 
 
 # ---------- вспомогательные выборки ----------
@@ -497,17 +534,29 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         raise HTTPException(status_code=400, detail="В теме нет слов")
     total = lessons_total_for(len(words))
     lesson_no = max(1, min(lesson_no, total))
+
+    # уроки внутри юнита идут по порядку — босс нельзя открыть первым
+    up = (await db.execute(select(UnitProgress).where(
+        UnitProgress.user_id == user.id, UnitProgress.theme_id == theme_id
+    ))).scalar_one_or_none()
+    if lesson_no > ((up.lessons_done if up else 0) or 0) + 1:
+        raise HTTPException(status_code=403, detail="Сначала пройди предыдущие уроки")
+
     pool = [word_dto(w) for w in words]
     is_boss = lesson_no == total
     phrase_mode = theme.title_ru in PHRASE_THEMES
 
     if is_boss:
-        # босс: по возможности по одному слову из каждого урока юнита
+        # босс: по одному слову из каждого урока + добор случайными до BOSS_QUESTIONS
         sample: list[dict] = []
         for i in range(0, len(pool), NEW_WORDS_PER_LESSON):
             chunk = pool[i:i + NEW_WORDS_PER_LESSON]
             if chunk:
                 sample.append(random.choice(chunk))
+        seen_ids = {w["id"] for w in sample}
+        extra = [w for w in pool if w["id"] not in seen_ids]
+        random.shuffle(extra)
+        sample += extra[:max(0, BOSS_QUESTIONS - len(sample))]
         random.shuffle(sample)
         sample = sample[:BOSS_QUESTIONS]
         items: list[dict] = []
@@ -552,7 +601,8 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                 other_words = [word_dto(w) for w in await unit_words(db, other.id)]
                 sort_payload = ex_sort_baskets(theme, pool, other, other_words)
 
-        items = build_exercises(new_words, pool, review, sort_payload, phrase_mode=phrase_mode)
+        items = build_exercises(new_words, pool, review, sort_payload,
+                                phrase_mode=phrase_mode, allow_build=lesson_no >= 3)
 
     if len(items) < 3:
         # страховка: без озвучки/картинок упражнения могли не собраться — даём карточки
@@ -580,8 +630,8 @@ async def daily_lesson(db: Annotated[AsyncSession, Depends(get_db)], user: Annot
     if existing and existing.items_json:
         return {"completed": False, "date": date, "items": json.loads(existing.items_json)}
 
-    # новое задание дня: повторение (до 8 слов) + немного нового из текущего юнита
-    review = await due_review_words(db, user, 8)
+    # новое задание дня: повторение (главный канал SRS) + немного нового из текущего юнита
+    review = await due_review_words(db, user, DAILY_REVIEW_LIMIT)
 
     units = await get_ordered_units(db)
     progress = await unit_progress_map(db, user)
@@ -681,9 +731,9 @@ def stars_for(correct: int, total: int) -> int:
     if total <= 0:
         return 1
     ratio = correct / total
-    if ratio >= 0.9:
+    if ratio >= 0.85:  # 5-леткам 90% недостижимо без слёз
         return 3
-    if ratio >= 0.7:
+    if ratio >= 0.65:
         return 2
     return 1
 
