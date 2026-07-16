@@ -225,6 +225,44 @@
   // ---------- упражнения ----------
   // каждый рендерер: (item, screen, done) => void; done({scored, ok})
 
+  // Разовая демонстрация правила для абстрактных упражнений («наоборот», «лишнее»):
+  // нечитающему ребёнку метаконцепт надо ПОКАЗАТЬ, а не только назвать словом.
+  function introSeen(type) { try { return localStorage.getItem('intro_' + type) === '1'; } catch (e) { return false; } }
+  function markIntro(type) { try { localStorage.setItem('intro_' + type, '1'); } catch (e) {} }
+
+  function showExerciseIntro(type, screen) {
+    return new Promise(resolve => {
+      screen.innerHTML = '';
+      const wrap = el('div', ''); wrap.style.cssText = 'display:grid;justify-items:center;gap:12px;text-align:center;';
+      if (type === 'opposite') {
+        wrap.appendChild(el('div', 'instr', '↔️ Игра «Наоборот»'));
+        const row = el('div', ''); row.style.cssText = 'display:flex;align-items:center;gap:16px;';
+        const big = el('div', 'emoji', '🔵'); big.style.fontSize = '92px';
+        const arr = el('div', '', '↔️'); arr.style.fontSize = '44px';
+        const small = el('div', 'emoji', '🔵'); small.style.fontSize = '30px';
+        row.appendChild(big); row.appendChild(arr); row.appendChild(small);
+        wrap.appendChild(row);
+        wrap.appendChild(el('div', 'word-small', 'Слышишь слово — ищи наоборот!'));
+        speakRuBrowser('Я называю слово, а ты ищи наоборот! Большой — а наоборот маленький.');
+      } else { // odd_one
+        wrap.appendChild(el('div', 'instr', '🧐 Игра «Что лишнее»'));
+        const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;';
+        ['🍎', '🍐', '🍌', '🚗'].forEach((e, i) => {
+          const d = el('div', '', e); d.style.fontSize = '54px';
+          if (i === 3) { d.style.transform = 'scale(1.15)'; d.style.filter = 'drop-shadow(0 0 10px #ef4444)'; }
+          row.appendChild(d);
+        });
+        wrap.appendChild(row);
+        wrap.appendChild(el('div', 'word-small', 'Три — про одно, а одна лишняя!'));
+        speakRuBrowser('Три картинки про одно, а одна лишняя. Найди, что не подходит!');
+      }
+      const go = el('button', 'kid-btn', 'Понятно! ▶️'); go.style.marginTop = '8px';
+      go.onclick = () => { markIntro(type); resolve(); };
+      wrap.appendChild(go);
+      screen.appendChild(wrap);
+    });
+  }
+
   function sentenceLine(w) {
     // предложение с подсветкой целевого слова
     const box = el('div', '');
@@ -825,8 +863,19 @@
     speakThenPlay('Собери предложение из слов', item.audio_url);
   }
 
-  function rPickImage(item, screen, done) {
+  async function rPickImage(item, screen, done) {
+    if (item.opposite_mode && !introSeen('opposite')) await showExerciseIntro('opposite', screen);
+    screen.innerHTML = '';
     screen.appendChild(el('div', 'instr', item.opposite_mode ? '↔️ Найди наоборот!' : '👂 Послушай и найди картинку'));
+    // якорь: картинка исходного слова, от которого ищем противоположность (ребёнку нужна опора)
+    if (item.opposite_mode && item.source) {
+      const anchor = el('div', ''); anchor.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px;margin-bottom:6px;';
+      const av = el('div', 'big-visual'); av.style.cssText = 'width:110px;height:110px;'; av.appendChild(visual(item.source));
+      anchor.appendChild(av);
+      const lab = el('div', 'word-small', '↔️ наоборот'); lab.style.color = '#8b5cf6';
+      anchor.appendChild(lab);
+      screen.appendChild(anchor);
+    }
     const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:14px;';
     const play = el('button', 'play-btn small', '🔊');
     play.onclick = () => playAudio(item.audio_url);
@@ -847,6 +896,7 @@
         t.classList.add(ok ? 'good' : 'bad');
         if (!ok) {
           [...grid.children].forEach(c => { if (c._id === item.word_id) c.classList.add('good'); else if (c !== t) c.classList.add('dim'); });
+          if (item.opposite_mode) { await sleep(400); await playAudio(item.audio_url); } // переслушать исходное слово
         }
         feedback(ok); await playFx(ok); await sleep(700);
         done({ scored: true, ok });
@@ -857,12 +907,16 @@
     speakThenPlay(item.opposite_mode ? 'Найди наоборот!' : 'Послушай и найди картинку', item.audio_url);
   }
 
-  function rOddOne(item, screen, done) {
+  async function rOddOne(item, screen, done) {
+    if (!introSeen('odd_one')) await showExerciseIntro('odd_one', screen);
+    screen.innerHTML = '';
     screen.appendChild(el('div', 'instr', '🧐 Что здесь лишнее?'));
     const grid = el('div', 'tile-grid'); screen.appendChild(grid);
+    const hint = el('div', 'word-small', '👂 Слушай…'); hint.style.marginTop = '8px'; screen.appendChild(hint);
     let locked = false, expoDone = false;
     const tiles = shuffled(item.options).map(opt => {
       const t = el('button', 'tile');
+      t.style.opacity = '.4'; // во время прослушивания плитки приглушены — тап пока не работает
       t.appendChild(visual(opt));
       t.onclick = async () => {
         if (locked || !expoDone) return;
@@ -878,17 +932,32 @@
       grid.appendChild(t);
       return { t, opt };
     });
-    // сначала все четыре слова называются по очереди — потом выбор
-    (async () => {
+    // сначала все четыре слова называются по очереди (плитки приглушены), потом — сигнал «твой ход»
+    async function runExposure(first) {
+      await waitUnpaused();
       await speakRu('Что здесь лишнее?');
       for (const { t, opt } of tiles) {
-        t.style.outline = '5px solid #fbbf24';
+        await waitUnpaused();
+        t.style.outline = '5px solid #fbbf24'; if (first) t.style.opacity = '1';
         await playAudio(opt.audio_url);
-        t.style.outline = 'none';
+        t.style.outline = 'none'; if (first) t.style.opacity = '.4';
         await sleep(150);
       }
-      expoDone = true;
-    })();
+      if (first) {
+        expoDone = true;
+        tiles.forEach(({ t }) => {
+          t.style.opacity = '1';
+          try { t.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 420 }); } catch (e) {}
+        });
+        hint.textContent = '👆 Нажми лишнее!';
+        replay.style.display = '';
+        speakRuBrowser('Нажми лишнее!');
+      }
+    }
+    const replay = el('button', 'play-btn small', '🔊'); replay.style.cssText = 'margin-top:8px;display:none;';
+    replay.onclick = () => { if (expoDone && !locked) runExposure(false); };
+    screen.appendChild(replay);
+    runExposure(true);
   }
 
   function rYesNo(item, screen, done) {
@@ -1319,14 +1388,21 @@
         doneFired = true;
         await waitUnpaused(); // не перескакивать задание, пока висит диалог выхода
         if (res && res.scored) {
-          total++;
-          if (res.ok) {
+          // каждое слово считается в знаменателе один раз; звезду даём, если ребёнок
+          // в итоге ответил верно (первый раз или после переспроса) — не штрафуем за спотыкание
+          if (!item._counted) {
+            item._counted = true;
+            total++;
+            if (res.ok) {
+              correct++;
+            } else {
+              item._requeued = true;
+              items.push(item);      // то же задание вернётся в конце урока
+              dots.appendChild(document.createElement('i'));
+            }
+          } else if (res.ok && !item._credited) {
+            item._credited = true;   // переспрос пройден верно — добираем звезду, total уже учтён
             correct++;
-          } else if (!item._requeued) {
-            // ошибся — то же задание вернётся в конце урока
-            item._requeued = true;
-            items.push(item);
-            dots.appendChild(document.createElement('i'));
           }
         }
         idx++;

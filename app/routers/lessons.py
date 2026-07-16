@@ -176,20 +176,29 @@ async def word_counts_by_theme(db: AsyncSession) -> dict[int, int]:
 
 # ---------- генераторы упражнений ----------
 
+def _has_photo(w: dict) -> bool:
+    """У слова настоящая картинка (а не эмодзи-заглушка)."""
+    img = w.get("image_url")
+    return bool(img and "noimg" not in img)
+
+
 def visual_key(w: dict) -> str:
     """Как слово выглядит для ребёнка: картинка или эмодзи-заглушка.
     Упражнения с выбором по картинке обязаны различать варианты именно по этому ключу."""
-    img = w.get("image_url")
-    if img and "noimg" not in img:
-        return f"img:{img}"
+    if _has_photo(w):
+        return f"img:{w['image_url']}"
     return f"emoji:{w.get('emoji') or '?'}"
 
 
 def distinct_visual_sample(target: dict, pool: list[dict], n: int) -> Optional[list[dict]]:
-    """n дистракторов, визуально отличных от цели и друг от друга."""
+    """n дистракторов, визуально отличных от цели и друг от друга.
+    Предпочитаем один и тот же формат плитки (фото/эмодзи), что и у цели: иначе
+    правильный ответ угадывается по «непохожести» тайла, а не по знанию слова."""
     seen = {visual_key(target)}
     cands = [p for p in pool if p["id"] != target["id"]]
     random.shuffle(cands)
+    tgt_photo = _has_photo(target)
+    cands.sort(key=lambda p: _has_photo(p) != tgt_photo)  # свой формат — вперёд, чужой — добор
     out: list[dict] = []
     for p in cands:
         k = visual_key(p)
@@ -446,15 +455,37 @@ OPPOSITES_TT = {
 }
 
 
-def ex_opposite(target: dict, pool: list[dict]) -> Optional[dict]:
-    """Найди наоборот: звучит слово — выбери картинку противоположности."""
+# Темы-категории, где «найди лишнее» осмысленно для нечитающего: ребёнок видит
+# 3 картинки «про одно» и 1 «не про то». На темах-НЕ-категориях (цвета, местоимения,
+# действия…) единой перцептивной группы нет и «лишнее» неопределимо — там odd_one не даём.
+ODD_ONE_CATEGORY_THEMES = {
+    "Животные: дома и во дворе",
+    "Животные: в лесу и зоопарке",
+    "Фрукты/ягоды",
+    "Овощи",
+    "Птицы, рыбки, букашки",
+    "Одежда и обувь",
+    "Продукты и напитки",
+    "Вещи в доме",
+    "Пенал и рюкзак",
+}
+
+
+def ex_opposite(target: dict, pool: list[dict], known_pool: list[dict]) -> Optional[dict]:
+    """Найди наоборот: звучит слово — выбери картинку противоположности.
+    Партнёр-антоним берётся только из уже знакомых ребёнку слов (known_pool): у формата
+    нет экспозиции, и картинка ещё не пройденного слова была бы неразрешима не угадыванием."""
     partner_tt = OPPOSITES_TT.get(target["text_tt"].lower())
     if not partner_tt or not target["audio_url"]:
         return None
-    partner = next((p for p in pool if p["text_tt"].lower() == partner_tt), None)
+    partner = next((p for p in known_pool if p["text_tt"].lower() == partner_tt), None)
     if not partner:
         return None
-    e = ex_pick_image(partner, [p for p in pool if p["text_tt"].lower() != target["text_tt"].lower()])
+    # дистракторы не должны содержать ДРУГИХ контрастных слов (короткий как «наоборот» большому)
+    distractor_pool = [p for p in pool
+                       if p["text_tt"].lower() != target["text_tt"].lower()
+                       and p["text_tt"].lower() not in OPPOSITES_TT]
+    e = ex_pick_image(partner, distractor_pool)
     if not e:
         return None
     e = dict(e)
@@ -462,17 +493,37 @@ def ex_opposite(target: dict, pool: list[dict]) -> Optional[dict]:
     e["opposite_mode"] = True
     e["text_tt"] = target["text_tt"]      # показываем/озвучиваем исходное слово
     e["audio_url"] = target["audio_url"]  # правильный ответ — картинка противоположности (word_id = partner)
+    e["source"] = {"id": target["id"], "image_url": target["image_url"],
+                   "emoji": target["emoji"]}  # якорь: картинка исходного слова, от которого ищем «наоборот»
     return e
 
 
 def ex_odd_one(pool: list[dict], other_words: list[dict]) -> Optional[dict]:
-    """Что лишнее: 3 слова темы + 1 чужое (по книге, стр. «Рәсемнәргә туры килми торган сүзләрне тап»)."""
-    trio = _distinct_voiced(pool, 3)
-    if not trio:
+    """Что лишнее: 3 слова темы + 1 чужое (по книге, «Рәсемнәргә туры килми торган сүзләрне тап»).
+    Все 4 плитки — одного формата (фото/эмодзи), «лишнее» не созвучно трио: чтобы задачу
+    нельзя было решить по типу тайла или на слух, только по смыслу."""
+    voiced = [w for w in pool if w["audio_url"] and w["text_tt"].lower() not in CATEGORY_TT]
+    random.shuffle(voiced)
+    seen: set[str] = set()
+    photos: list[dict] = []
+    emojis: list[dict] = []
+    for w in voiced:
+        k = visual_key(w)
+        if k in seen:
+            continue
+        seen.add(k)
+        (photos if _has_photo(w) else emojis).append(w)
+    group = photos if len(photos) >= 3 else emojis  # трио одного формата
+    if len(group) < 3:
         return None
-    seen = {visual_key(w) for w in trio}
-    odd_cands = [w for w in other_words if w["audio_url"] and visual_key(w) not in seen
-                 and w["text_tt"].lower() not in CATEGORY_TT]
+    trio = random.sample(group, 3)
+    want_photo = _has_photo(trio[0])
+    trio_keys = {visual_key(w) for w in trio}
+    odd_cands = [w for w in other_words
+                 if w["audio_url"] and _has_photo(w) == want_photo
+                 and visual_key(w) not in trio_keys
+                 and w["text_tt"].lower() not in CATEGORY_TT
+                 and not any(confusable(w["text_tt"], t["text_tt"]) for t in trio)]
     if not odd_cands:
         return None
     odd = random.choice(odd_cands)
@@ -704,9 +755,10 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                 practice.append(built)
         # один «бонусный» формат за урок из доступных по уровню — разнообразие без раздувания длины
         extra_gens = []
+        known_pool = new_words + review_words  # партнёр-антоним — только из знакомых ребёнку слов
         for w in new_words:
             if w["text_tt"].lower() in OPPOSITES_TT:
-                extra_gens.append(lambda w=w: ex_opposite(w, pool))
+                extra_gens.append(lambda w=w: ex_opposite(w, pool, known_pool))
                 break
         if sentences_ok:
             extra_gens.append(lambda: ex_windows(pool))
@@ -967,11 +1019,11 @@ async def unit_lesson(theme_id: int, lesson_no: int,
             if prev_units and random.random() < 0.7:
                 other = random.choice(prev_units)
                 other_words = [word_dto(w) for w in await unit_words(db, other.id)]
-                if random.random() < 0.6:
-                    sort_payload = ex_sort_baskets(theme, pool, other, other_words)
-                else:
-                    # «что лишнее?» — 3 слова темы + 1 чужое (механика из книги)
+                # «что лишнее?» — только на темах-категориях (иначе «лишнее» неопределимо); иначе сортировка
+                if theme.title_ru in ODD_ONE_CATEGORY_THEMES and random.random() < 0.4:
                     sort_payload = ex_odd_one(pool, other_words)
+                if not sort_payload:
+                    sort_payload = ex_sort_baskets(theme, pool, other, other_words)
 
         items = build_exercises(new_words, pool, review, sort_payload,
                                 phrase_mode=phrase_mode, allow_build=lesson_no >= 3,

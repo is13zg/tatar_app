@@ -306,10 +306,15 @@ async def word_audio(
         raise HTTPException(status_code=400, detail="Ожидается аудио (wav/mp3/ogg/webm/m4a)")
     from pathlib import Path
     from ..config import STATIC_DIR
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Пустой файл")
+    if len(data) > 10_000_000:
+        raise HTTPException(status_code=400, detail="Файл слишком большой (максимум 10 МБ)")
     target_dir = Path(STATIC_DIR) / 'voice' / 'uploads'
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"word_{word.id}.{ext}"
-    target.write_bytes(await file.read())
+    target.write_bytes(data)
     word.audio_url = f"/static/voice/uploads/{target.name}?v={int(time.time())}"  # cache-bust при перезаписи
     await db.commit()
     return {"word_id": word.id, "audio_url": word.audio_url}
@@ -416,10 +421,15 @@ async def sentence_audio(
         raise HTTPException(status_code=400, detail="Ожидается аудио (wav/mp3/ogg/webm/m4a)")
     from pathlib import Path
     from ..config import STATIC_DIR
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Пустой файл")
+    if len(data) > 10_000_000:
+        raise HTTPException(status_code=400, detail="Файл слишком большой (максимум 10 МБ)")
     target_dir = Path(STATIC_DIR) / 'voice' / 'uploads'
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"sentence_{word.id}.{ext}"
-    target.write_bytes(await file.read())
+    target.write_bytes(data)
     word.sentence_audio_url = f"/static/voice/uploads/{target.name}?v={int(time.time())}"  # cache-bust при перезаписи
     await db.commit()
     return {"word_id": word.id, "sentence_audio_url": word.sentence_audio_url}

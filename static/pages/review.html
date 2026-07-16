@@ -99,6 +99,9 @@
     }
 
     let themes = [], words = [];
+    let recActive = false; // идёт запись — не перерисовывать список, иначе строка осиротеет
+
+    function render() { if (recActive) return; renderNow(); }
 
     function rowHtml(w) {
       const hasImg = w.image_url && !w.image_url.includes('noimg');
@@ -107,7 +110,7 @@
       return { hasImg, audio, isRec };
     }
 
-    function render() {
+    function renderNow() {
       const q = (document.getElementById('search').value || '').toLowerCase();
       const f = document.getElementById('filter').value;
       const list = document.getElementById('list');
@@ -115,7 +118,7 @@
       let shown = 0;
       words.forEach(w => {
         const { hasImg, audio, isRec } = rowHtml(w);
-        if (q && !(w.text_tt.toLowerCase().includes(q) || w.text_ru.toLowerCase().includes(q))) return;
+        if (q && !((w.text_tt || '').toLowerCase().includes(q) || (w.text_ru || '').toLowerCase().includes(q))) return;
         if (f === 'noimg' && hasImg) return;
         if (f === 'rec' && !isRec) return;
         if (f === 'tts' && isRec) return;
@@ -382,7 +385,8 @@
         alert('Запись работает только на https-версии: https://62.113.108.107:8443');
         return;
       }
-      if (btn.dataset.rec === '1') { window.__stopRec && window.__stopRec(); return; }
+      if (btn.dataset.rec === '1') { btn._stopRec && btn._stopRec(); return; }
+      if (recActive) { alert('Сначала остановите текущую запись'); return; } // одна запись за раз
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -393,12 +397,14 @@
       const chunks = [];
       rec.ondataavailable = e => chunks.push(e.data);
       const origText = btn.textContent, origBg = btn.style.background;
+      recActive = true; // блокируем перерисовку списка, чтобы строка не осиротела
       btn.dataset.rec = '1'; btn.textContent = '⏹ стоп'; btn.style.background = '#fecaca';
       const stop = () => { if (rec.state === 'recording') rec.stop(); };
-      window.__stopRec = stop;
+      btn._stopRec = stop; // стоп привязан к своей кнопке, а не глобально
       const autoStop = setTimeout(stop, cfg.maxMs || 5000);
       rec.onstop = async () => {
         clearTimeout(autoStop);
+        recActive = false;
         stream.getTracks().forEach(t => t.stop());
         btn.dataset.rec = ''; btn.textContent = origText; btn.style.background = origBg;
         let wav;
@@ -460,7 +466,9 @@
     async function loadWords() {
       document.getElementById('theme-btn').textContent = themeBtnText();
       const missing = [...selectedThemes].filter(id => !wordsByTheme[id]);
-      await Promise.all(missing.map(async id => { wordsByTheme[id] = await api(`/themes/${id}/words`); }));
+      try {
+        await Promise.all(missing.map(async id => { wordsByTheme[id] = await api(`/themes/${id}/words`); }));
+      } catch (e) { alert('Не удалось загрузить слова: ' + e.message); return; }
       words = [];
       themes.forEach(t => {
         if (!selectedThemes.has(t.id)) return;
