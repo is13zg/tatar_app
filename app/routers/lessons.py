@@ -522,7 +522,8 @@ async def learning_path(db: Annotated[AsyncSession, Depends(get_db)], user: Anno
         prev_done = completed
     streak = await compute_streak(db, user)
     stickers = (await db.execute(select(UserSticker).where(UserSticker.user_id == user.id))).scalars().all()
-    return {"units": result, "streak": streak, "stickers": [s.sticker for s in stickers]}
+    return {"units": result, "streak": streak, "stickers": [s.sticker for s in stickers],
+            "is_admin": user.is_admin}
 
 
 @router.get("/unit/{theme_id}/{lesson_no}")
@@ -532,7 +533,8 @@ async def unit_lesson(theme_id: int, lesson_no: int,
     theme = (await db.execute(select(Theme).where(Theme.id == theme_id))).scalar_one_or_none()
     if not theme:
         raise HTTPException(status_code=404, detail="Тема не найдена")
-    if theme_id not in await unlocked_theme_ids(db, user):
+    # админ проверяет любой урок с карты — все замки и лимиты для него выключены
+    if not user.is_admin and theme_id not in await unlocked_theme_ids(db, user):
         raise HTTPException(status_code=403, detail="Этот юнит ещё закрыт")
     words = await unit_words(db, theme_id)
     if not words:
@@ -545,11 +547,11 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         UnitProgress.user_id == user.id, UnitProgress.theme_id == theme_id
     ))).scalar_one_or_none()
     lessons_done = ((up.lessons_done if up else 0) or 0)
-    if lesson_no > lessons_done + 1:
+    if not user.is_admin and lesson_no > lessons_done + 1:
         raise HTTPException(status_code=403, detail="Сначала пройди предыдущие уроки")
 
     # дневной лимит новых слов: очередь повторений не должна расти лавинообразно
-    if lesson_no == lessons_done + 1:  # первое прохождение этого урока
+    if not user.is_admin and lesson_no == lessons_done + 1:  # первое прохождение этого урока
         kazan_day_start = (now_utc() + KAZAN_UTC_OFFSET).replace(hour=0, minute=0, second=0, microsecond=0) - KAZAN_UTC_OFFSET
         new_today = (await db.execute(
             select(func.count(UserProgress.id)).where(
@@ -774,7 +776,7 @@ async def lesson_complete(payload: LessonComplete,
         theme = (await db.execute(select(Theme).where(Theme.id == payload.theme_id))).scalar_one_or_none()
         if not theme:
             raise HTTPException(status_code=404, detail="Тема не найдена")
-        if theme.id not in await unlocked_theme_ids(db, user):
+        if not user.is_admin and theme.id not in await unlocked_theme_ids(db, user):
             raise HTTPException(status_code=403, detail="Этот юнит ещё закрыт")
         words = await unit_words(db, theme.id)
         total_lessons = lessons_total_for(len(words))
@@ -785,7 +787,7 @@ async def lesson_complete(payload: LessonComplete,
             p = UnitProgress(user_id=user.id, theme_id=theme.id, stars=0, lessons_done=0)
             db.add(p)
         lesson_no = min(payload.lesson_no, total_lessons)
-        if lesson_no > (p.lessons_done or 0) + 1:
+        if not user.is_admin and lesson_no > (p.lessons_done or 0) + 1:
             raise HTTPException(status_code=400, detail="Этот урок ещё не открыт")
         p.lessons_done = max(p.lessons_done or 0, lesson_no)
         # копим звёзды за каждый урок (лучший результат)
