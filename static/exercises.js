@@ -253,7 +253,7 @@
     screen.appendChild(el('div', 'word-big', w.text_tt));
     screen.appendChild(el('div', 'word-small', w.text_ru));
     if (w.sentence_tt) screen.appendChild(sentenceLine(w));
-    const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;align-items:center;margin-top:14px;';
+    const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;align-items:center;margin-top:14px;flex-wrap:wrap;justify-content:center;';
     const play = el('button', 'play-btn', '🔊');
     play.title = 'Слово';
     play.onclick = () => playAudio(w.audio_url);
@@ -283,7 +283,7 @@
     screen.appendChild(twp);
     screen.appendChild(el('div', 'word-small', w.text_ru));
     if (w.sentence_tt) screen.appendChild(sentenceLine(w));
-    const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;align-items:center;margin-top:12px;';
+    const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap;justify-content:center;';
     const play = el('button', 'play-btn', '🔊');
     play.title = 'Слово';
     play.onclick = () => playAudio(w.audio_url);
@@ -916,6 +916,11 @@
           wrong++;
           b.classList.add('bad'); playFx(false);
           setTimeout(() => b.classList.remove('bad'), 450);
+          if (wrong % 3 === 0) {
+            // анти-тупик: подсказка сама ставит следующую букву
+            const hintTile = [...letters.children].find(x => !x.disabled && x.textContent === word[pos]);
+            if (hintTile) { hintTile.classList.add('good'); setTimeout(() => { hintTile.onclick(); hintTile.classList.remove('good'); }, 400); }
+          }
         }
       };
       letters.appendChild(b);
@@ -991,6 +996,7 @@
       next.style.marginTop = '14px';
       next.onclick = () => { reportAnswer(w.id, true, 'repeat_after'); done({ scored: false }); };
       screen.appendChild(next);
+      setTimeout(() => next.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
     }
     speakThenPlay('Повтори за диктором', w.audio_url);
   }

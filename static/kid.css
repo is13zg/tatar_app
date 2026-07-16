@@ -11,6 +11,7 @@
   --shadow: 0 6px 0 rgba(0,0,0,.08);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { overflow-x: hidden; } /* анимации (shake/конфетти) не должны дёргать страницу вбок */
 button, .tile, .mem-card, .basket, .letter-tile { touch-action: manipulation; }
 html, body { height: 100%; }
 body {
