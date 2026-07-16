@@ -450,6 +450,8 @@ def ex_build_sentence(target: dict, pool: list[dict]) -> Optional[dict]:
         return audio_by_tt.get(tok.lower()) or cached_tts_url(tok.lower())
 
     correct = [{"text": t, "audio_url": token_audio(t)} for t in tokens]
+    if any(c["audio_url"] is None for c in correct):
+        return None  # плитка обязана звучать по тапу — немой конструктор бесполезен нечитающему
     # ловушки: 1-2 однословных слова темы, не из предложения и не созвучные с целью
     cands = [p for p in pool
              if " " not in p["text_tt"] and p["audio_url"]
@@ -820,6 +822,7 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                 if e:
                     items.append(e)
         random.shuffle(items)
+        items = _no_three_in_a_row(items)
     else:
         start = (lesson_no - 1) * NEW_WORDS_PER_LESSON
         new_words = pool[start:start + NEW_WORDS_PER_LESSON]
@@ -922,13 +925,16 @@ class LessonAnswer(BaseModel):
 async def lesson_answer(answer: LessonAnswer,
                         db: Annotated[AsyncSession, Depends(get_db)],
                         user: Annotated[User, Depends(get_current_user)]):
-    word = (await db.execute(select(Word.id).where(Word.id == answer.word_id))).scalar_one_or_none()
-    if word is None:
+    word_row = (await db.execute(select(Word).where(Word.id == answer.word_id))).scalar_one_or_none()
+    if word_row is None:
         raise HTTPException(status_code=404, detail="Слово не найдено")
     progress = (await db.execute(
         select(UserProgress).where(UserProgress.user_id == user.id, UserProgress.word_id == answer.word_id)
     )).scalar_one_or_none()
     if not progress:
+        # новое слово: оно должно быть из открытого юнита (защита от накрутки прогресса)
+        if not user.is_admin and word_row.theme_id not in await unlocked_theme_ids(db, user):
+            raise HTTPException(status_code=403, detail="Это слово из закрытого юнита")
         progress = UserProgress(user_id=user.id, word_id=answer.word_id, learned=False, strength=0,
                                 first_seen_at=now_utc())
         db.add(progress)
@@ -1008,6 +1014,18 @@ async def lesson_complete(payload: LessonComplete,
         lesson_no = min(payload.lesson_no, total_lessons)
         if not user.is_admin and lesson_no > (p.lessons_done or 0) + 1:
             raise HTTPException(status_code=400, detail="Этот урок ещё не открыт")
+        # дневной лимит новых слов действует и на закрытие урока — иначе 429 обходится одним POST
+        if not user.is_admin and lesson_no == (p.lessons_done or 0) + 1 and lesson_no < total_lessons:
+            kazan_day_start = (now_utc() + KAZAN_UTC_OFFSET).replace(hour=0, minute=0, second=0, microsecond=0) - KAZAN_UTC_OFFSET
+            new_today = (await db.execute(
+                select(func.count(UserProgress.id)).where(
+                    UserProgress.user_id == user.id,
+                    UserProgress.first_seen_at.is_not(None),
+                    UserProgress.first_seen_at >= kazan_day_start,
+                )
+            )).scalar_one()
+            if new_today > NEW_WORDS_DAILY_LIMIT + NEW_WORDS_PER_LESSON:
+                raise HTTPException(status_code=429, detail="На сегодня хватит новых слов! 🌟 Приходи завтра")
         p.lessons_done = max(p.lessons_done or 0, lesson_no)
         # копим звёзды за каждый урок (лучший результат)
         lr = (await db.execute(select(LessonResult).where(

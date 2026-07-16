@@ -1,4 +1,5 @@
 import io
+import time
 import zipfile
 from typing import Annotated, Optional
 
@@ -309,7 +310,7 @@ async def word_audio(
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"word_{word.id}.{ext}"
     target.write_bytes(await file.read())
-    word.audio_url = f"/static/voice/uploads/{target.name}"
+    word.audio_url = f"/static/voice/uploads/{target.name}?v={int(time.time())}"  # cache-bust при перезаписи
     await db.commit()
     return {"word_id": word.id, "audio_url": word.audio_url}
 
@@ -352,6 +353,9 @@ async def import_sentences(
             skipped += 1
             continue
         st = (item.get("sentence_tt") or "").strip() or None
+        if st and len(st) > 200:
+            skipped += 1
+            continue
         word.sentence_tt = st
         word.sentence_ru = (item.get("sentence_ru") or "").strip() or None
         word.sentence_audio_url = None  # переозвучить
@@ -370,12 +374,25 @@ async def set_sentence(
     word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
     if not word:
         raise HTTPException(status_code=404, detail="Слово не найдено")
-    word.sentence_tt = (payload.get("sentence_tt") or "").strip() or None
-    word.sentence_ru = (payload.get("sentence_ru") or "").strip() or None
+    st = (payload.get("sentence_tt") or "").strip() or None
+    if st and len(st) > 200:
+        raise HTTPException(status_code=400, detail="Предложение слишком длинное (максимум 200 символов)")
+    word.sentence_tt = st
+    word.sentence_ru = ((payload.get("sentence_ru") or "").strip() or None)
+    if word.sentence_ru and len(word.sentence_ru) > 200:
+        raise HTTPException(status_code=400, detail="Перевод слишком длинный (максимум 200 символов)")
     word.sentence_audio_url = None
     if word.sentence_tt:
         try:
             word.sentence_audio_url = await synthesize_to_file(word.sentence_tt)
+            # плитки конструктора должны звучать — озвучиваем каждый токен
+            import re as _re
+            for tok in _re.split(r"[^\wәөүҗңһӘӨҮҖҢҺ-]+", word.sentence_tt):
+                if tok:
+                    try:
+                        await synthesize_to_file(tok.lower())
+                    except Exception:
+                        pass
         except Exception:
             pass  # озвучится через tts_sentences_all
     await db.commit()
@@ -480,6 +497,6 @@ async def word_image(
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"word_{word.id}.{ext}"
     target.write_bytes(await file.read())
-    word.image_url = f"/static/image/uploads/{target.name}"
+    word.image_url = f"/static/image/uploads/{target.name}?v={int(time.time())}"  # cache-bust при перезаписи
     await db.commit()
     return {"word_id": word.id, "image_url": word.image_url}

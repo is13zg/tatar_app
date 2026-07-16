@@ -86,8 +86,12 @@
       ruAudioEl.src = `/static/voice/ru/${key}.wav`;
       ruAudioEl.onended = () => resolve();
       ruAudioEl.onerror = () => {
-        missingInstr.add(key); // реальная ошибка загрузки (404/сеть)
-        if (my === speakToken) { speakRuBrowser(text).then(resolve); } else { resolve(); }
+        if (my === speakToken) {
+          missingInstr.add(key); // реальная ошибка загрузки (404/сеть)
+          speakRuBrowser(text).then(resolve);
+        } else {
+          resolve(); // нас просто перебили следующим звуком — файл не виноват
+        }
       };
       ruAudioEl.play().catch(() => resolve()); // перебили другим звуком — тихо выходим
       setTimeout(resolve, 4000); // страховка
@@ -128,6 +132,9 @@
   }
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  let lessonPaused = false; // диалог «Уйти с урока?» ставит всё на паузу
+  async function waitUnpaused() { while (lessonPaused) await sleep(200); }
 
   function shuffled(arr) {
     const a = [...arr];
@@ -543,6 +550,7 @@
     });
     let hits = 0, mistakes = 0, idx = 0, tappedThis = false;
     async function round() {
+      await waitUnpaused(); // пауза диалога выхода — кроты не бегают без ребёнка
       if (idx >= item.seq.length) {
         const ok = hits >= 2 && mistakes <= 1;
         reportAnswer(item.word_id, ok, 'moles');
@@ -1015,6 +1023,8 @@
     back.onclick = () => {
       // подтверждение выхода — случайный тап не должен терять урок
       if (document.getElementById('exit-confirm')) return;
+      lessonPaused = true; // игры с авто-ходом (норки) и очередь done() замирают
+      try { audioEl.pause(); ruAudioEl.pause(); speechSynthesis.cancel(); } catch (e) {}
       const overlay = el('div', '');
       overlay.id = 'exit-confirm';
       overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:grid;place-items:center;z-index:70;padding:20px;';
@@ -1022,7 +1032,7 @@
       box.style.cssText = 'max-width:340px;width:100%;display:grid;gap:12px;text-align:center;';
       box.appendChild(el('div', 'word-big', 'Уйти с урока?'));
       const stay = el('button', 'kid-btn', '▶️ Продолжить');
-      stay.onclick = () => overlay.remove();
+      stay.onclick = () => { lessonPaused = false; overlay.remove(); };
       const leave = el('button', 'kid-btn ghost', '🚪 Выйти');
       leave.onclick = () => location.href = opts.backUrl || '/static/pages/home.html';
       box.appendChild(stay); box.appendChild(leave);
@@ -1084,9 +1094,10 @@
       const renderer = RENDERERS[item.type];
       if (!renderer) { idx++; return renderCurrent(); }
       let doneFired = false; // защита от двойного тапа по «Дальше»
-      renderer(item, screen, (res) => {
+      renderer(item, screen, async (res) => {
         if (doneFired) return;
         doneFired = true;
+        await waitUnpaused(); // не перескакивать задание, пока висит диалог выхода
         if (res && res.scored) {
           total++;
           if (res.ok) {
