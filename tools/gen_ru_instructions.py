@@ -44,6 +44,8 @@ INSTRUCTIONS = {
     "otkryvaj_okoshki": "Открывай окошки и запоминай!",
     "posveti_fonarikom": "Посвети! Кто прячется в темноте?",
     "povtori_cepochku": "Повтори цепочку!",
+    "chto_lishnee": "Что здесь лишнее?",
+    "najdi_naoborot": "Найди наоборот!",
     "povtori_za_diktorom": "Повтори за диктором",
     "molodec": "Молодец!",
     "molodec_otlichno": "Молодец! Отлично!",

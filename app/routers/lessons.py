@@ -435,6 +435,52 @@ def with_sentence_audio(e: Optional[dict], target: dict) -> Optional[dict]:
     return e
 
 
+# Противоположности (по книге «Сүзләр дөньясы», раздел «Капма-каршылык»)
+OPPOSITES_TT = {
+    "зур": "нәни", "нәни": "зур",
+    "озын": "кыска", "кыска": "озын",
+    "кайнар": "салкын", "салкын": "кайнар",
+    "тәмле": "тәмсез", "тәмсез": "тәмле",
+    "ак": "кара", "кара": "ак",
+    "көн": "төн", "төн": "көн",
+}
+
+
+def ex_opposite(target: dict, pool: list[dict]) -> Optional[dict]:
+    """Найди наоборот: звучит слово — выбери картинку противоположности."""
+    partner_tt = OPPOSITES_TT.get(target["text_tt"].lower())
+    if not partner_tt or not target["audio_url"]:
+        return None
+    partner = next((p for p in pool if p["text_tt"].lower() == partner_tt), None)
+    if not partner:
+        return None
+    e = ex_pick_image(partner, [p for p in pool if p["text_tt"].lower() != target["text_tt"].lower()])
+    if not e:
+        return None
+    e = dict(e)
+    e["type"] = "pick_image"
+    e["opposite_mode"] = True
+    e["text_tt"] = target["text_tt"]      # показываем/озвучиваем исходное слово
+    e["audio_url"] = target["audio_url"]  # правильный ответ — картинка противоположности (word_id = partner)
+    return e
+
+
+def ex_odd_one(pool: list[dict], other_words: list[dict]) -> Optional[dict]:
+    """Что лишнее: 3 слова темы + 1 чужое (по книге, стр. «Рәсемнәргә туры килми торган сүзләрне тап»)."""
+    trio = _distinct_voiced(pool, 3)
+    if not trio:
+        return None
+    seen = {visual_key(w) for w in trio}
+    odd_cands = [w for w in other_words if w["audio_url"] and visual_key(w) not in seen
+                 and w["text_tt"].lower() not in CATEGORY_TT]
+    if not odd_cands:
+        return None
+    odd = random.choice(odd_cands)
+    options = [_brief(w) for w in trio] + [_brief(odd)]
+    random.shuffle(options)
+    return {"type": "odd_one", "word_id": odd["id"], "options": options}
+
+
 # ---- третья волна мини-игр (остаток отчёта геймдизайнера) ----
 
 def _brief(w: dict) -> dict:
@@ -658,6 +704,10 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                 practice.append(built)
         # один «бонусный» формат за урок из доступных по уровню — разнообразие без раздувания длины
         extra_gens = []
+        for w in new_words:
+            if w["text_tt"].lower() in OPPOSITES_TT:
+                extra_gens.append(lambda w=w: ex_opposite(w, pool))
+                break
         if sentences_ok:
             extra_gens.append(lambda: ex_windows(pool))
         if allow_build:
@@ -914,10 +964,14 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                 and u.title_ru not in PHRASE_THEMES
                 and frozenset({u.title_ru, theme.title_ru}) not in SORT_INCOMPATIBLE
             ]
-            if prev_units and random.random() < 0.5:
+            if prev_units and random.random() < 0.7:
                 other = random.choice(prev_units)
                 other_words = [word_dto(w) for w in await unit_words(db, other.id)]
-                sort_payload = ex_sort_baskets(theme, pool, other, other_words)
+                if random.random() < 0.6:
+                    sort_payload = ex_sort_baskets(theme, pool, other, other_words)
+                else:
+                    # «что лишнее?» — 3 слова темы + 1 чужое (механика из книги)
+                    sort_payload = ex_odd_one(pool, other_words)
 
         items = build_exercises(new_words, pool, review, sort_payload,
                                 phrase_mode=phrase_mode, allow_build=lesson_no >= 3,

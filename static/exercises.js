@@ -45,6 +45,8 @@
     'Кто убежал? Найди!': 'kto_ubezhal',
     'Лови только то, что я называю!': 'lovi_tolko',
     'Открывай окошки и запоминай!': 'otkryvaj_okoshki',
+    'Что здесь лишнее?': 'chto_lishnee',
+    'Найди наоборот!': 'najdi_naoborot',
     'Посвети! Кто прячется в темноте?': 'posveti_fonarikom',
     'Повтори цепочку!': 'povtori_cepochku',
     'Послушай и найди картинку': 'najdi_kartinku',
@@ -824,7 +826,7 @@
   }
 
   function rPickImage(item, screen, done) {
-    screen.appendChild(el('div', 'instr', '👂 Послушай и найди картинку'));
+    screen.appendChild(el('div', 'instr', item.opposite_mode ? '↔️ Найди наоборот!' : '👂 Послушай и найди картинку'));
     const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:14px;';
     const play = el('button', 'play-btn small', '🔊');
     play.onclick = () => playAudio(item.audio_url);
@@ -852,7 +854,41 @@
       t._id = opt.id;
       grid.appendChild(t);
     });
-    speakThenPlay('Послушай и найди картинку', item.audio_url);
+    speakThenPlay(item.opposite_mode ? 'Найди наоборот!' : 'Послушай и найди картинку', item.audio_url);
+  }
+
+  function rOddOne(item, screen, done) {
+    screen.appendChild(el('div', 'instr', '🧐 Что здесь лишнее?'));
+    const grid = el('div', 'tile-grid'); screen.appendChild(grid);
+    let locked = false, expoDone = false;
+    const tiles = shuffled(item.options).map(opt => {
+      const t = el('button', 'tile');
+      t.appendChild(visual(opt));
+      t.onclick = async () => {
+        if (locked || !expoDone) return;
+        locked = true;
+        const ok = opt.id === item.word_id;
+        reportAnswer(item.word_id, ok, 'odd_one');
+        t.classList.add(ok ? 'good' : 'bad');
+        if (!ok) [...grid.children].forEach(c => { if (c._id === item.word_id) c.classList.add('good'); });
+        feedback(ok); await playFx(ok); await sleep(500);
+        done({ scored: true, ok });
+      };
+      t._id = opt.id;
+      grid.appendChild(t);
+      return { t, opt };
+    });
+    // сначала все четыре слова называются по очереди — потом выбор
+    (async () => {
+      await speakRu('Что здесь лишнее?');
+      for (const { t, opt } of tiles) {
+        t.style.outline = '5px solid #fbbf24';
+        await playAudio(opt.audio_url);
+        t.style.outline = 'none';
+        await sleep(150);
+      }
+      expoDone = true;
+    })();
   }
 
   function rYesNo(item, screen, done) {
@@ -1183,6 +1219,7 @@
     windows: rWindows,
     flashlight: rFlashlight,
     chain: rChain,
+    odd_one: rOddOne,
   };
 
   // ---------- раннер ----------
