@@ -18,11 +18,15 @@
   function playAudio(url) {
     return new Promise(resolve => {
       if (!url) return resolve();
+      // татарское слово главнее: глушим инструкцию, чтобы голоса не накладывались
+      try { speechSynthesis.cancel(); } catch (e) {}
+      try { ruAudioEl.pause(); } catch (e) {}
       try { audioEl.pause(); audioEl.currentTime = 0; } catch (e) {}
       audioEl.src = url;
       audioEl.onended = () => resolve();
       audioEl.onerror = () => resolve();
       audioEl.play().catch(() => resolve());
+      setTimeout(resolve, 10000); // страховка
     });
   }
 
@@ -42,25 +46,40 @@
   };
   const missingInstr = new Set();
   const ruAudioEl = new Audio();
+  let speakToken = 0; // каждый новый голос отменяет предыдущий — никаких наложений
 
   function speakRuBrowser(text) {
-    try {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'ru-RU'; u.rate = 0.95;
-      speechSynthesis.cancel(); speechSynthesis.speak(u);
-    } catch (e) {}
+    // Браузерный синтез: ждём, пока договорит, — иначе следующее аудио ляжет поверх.
+    return new Promise(resolve => {
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ru-RU'; u.rate = 0.95;
+        u.onend = () => resolve();
+        u.onerror = () => resolve();
+        speechSynthesis.cancel();
+        speechSynthesis.speak(u);
+        setTimeout(resolve, 5000); // страховка
+      } catch (e) { resolve(); }
+    });
   }
 
   function speakRu(text) {
-    // Возвращает промис: файл доиграл → resolve; фолбэк — браузерный синтез (резолв сразу).
+    // Файл доиграл → resolve. Прерывание НОВЫМ звуком — это не ошибка файла:
+    // раньше такой catch помечал файл «отсутствующим» и запускал браузерный
+    // синтез ПАРАЛЛЕЛЬНО следующему файлу — отсюда каша из голосов.
     return new Promise(resolve => {
+      const my = ++speakToken;
       const key = INSTR_AUDIO[text];
-      if (!key || missingInstr.has(key)) { speakRuBrowser(text); return resolve(); }
+      if (!key || missingInstr.has(key)) { speakRuBrowser(text).then(resolve); return; }
+      try { speechSynthesis.cancel(); } catch (e) {}
       try { ruAudioEl.pause(); ruAudioEl.currentTime = 0; } catch (e) {}
       ruAudioEl.src = `/static/voice/ru/${key}.wav`;
       ruAudioEl.onended = () => resolve();
-      ruAudioEl.onerror = () => { missingInstr.add(key); speakRuBrowser(text); resolve(); };
-      ruAudioEl.play().catch(() => { missingInstr.add(key); speakRuBrowser(text); resolve(); });
+      ruAudioEl.onerror = () => {
+        missingInstr.add(key); // реальная ошибка загрузки (404/сеть)
+        if (my === speakToken) { speakRuBrowser(text).then(resolve); } else { resolve(); }
+      };
+      ruAudioEl.play().catch(() => resolve()); // перебили другим звуком — тихо выходим
       setTimeout(resolve, 4000); // страховка
     });
   }
@@ -635,7 +654,21 @@
       screen.appendChild(el('div', 'word-big', data.is_boss ? 'Большая игра!' : 'Начинаем урок!'));
       const go = el('button', 'kid-btn', '▶️ Поехали!');
       go.style.marginTop = '14px';
-      go.onclick = () => { speakRu('Молодец!'); /* прогрев аудио жестом */ renderCurrent(); };
+      go.onclick = () => {
+        // тихий прогрев всех аудио-каналов жестом (разблокировка iOS/Chrome) —
+        // раньше тут звучало «Молодец!», которое перекрывалось первой карточкой
+        const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=';
+        [audioEl, ruAudioEl, sfxGood, sfxBad].forEach(a => {
+          try {
+            a.muted = true;
+            const src = a.src; a.src = SILENT;
+            const p = a.play(); if (p) p.catch(() => {});
+            a.pause(); a.muted = false;
+            if (src) a.src = src;
+          } catch (e) {}
+        });
+        renderCurrent();
+      };
       screen.appendChild(go);
     }
 
@@ -649,8 +682,9 @@
       const result = (await reportComplete(payload)) || { stars: stars_estimate(), sticker: null, streak: 0 };
       function stars_estimate() { return total > 0 && correct / total >= 0.9 ? 3 : (total > 0 && correct / total >= 0.7 ? 2 : 1); }
       screen.innerHTML = '';
-      confetti(); playFx(true);
-      speakRu(result.stars >= 3 ? 'Молодец! Отлично!' : 'Молодец!');
+      confetti();
+      // сначала фанфары, потом голос — не одновременно
+      playFx(true).then(() => speakRu(result.stars >= 3 ? 'Молодец! Отлично!' : 'Молодец!'));
       screen.appendChild(el('div', 'word-big', 'Афәрин! 🎉'));
       screen.appendChild(el('div', 'stars-row', '⭐'.repeat(result.stars || 1) + '☆'.repeat(3 - (result.stars || 1))));
       if (total > 0) screen.appendChild(el('div', 'word-small', `Правильно: ${correct} из ${total}`));
