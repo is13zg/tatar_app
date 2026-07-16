@@ -193,7 +193,15 @@
         // запись собственного голоса с обработкой (шумоподавление/обрезка тишины/нормализация)
         const recBtn = document.createElement('button'); recBtn.textContent = '🎙 записать';
         recBtn.style.background = '#fee2e2';
-        recBtn.onclick = () => startRecording(w, row, recBtn);
+        recBtn.onclick = () => startRecording(row, recBtn, {
+          save: async wav => {
+            const fd = new FormData(); fd.append('file', wav, `word_${w.id}.wav`);
+            const r = await api(`/admin/word_audio/${w.id}`, { method: 'POST', body: fd });
+            w.audio_url = r.audio_url;
+            render();
+            play(r.audio_url);
+          },
+        });
         actions.appendChild(recBtn);
 
         const upI = document.createElement('label'); upI.className = 'up'; upI.textContent = '🖼 картинка';
@@ -245,15 +253,33 @@
           sp.disabled = !w.sentence_audio_url;
           sp.onclick = () => play(w.sentence_audio_url);
           sbox.appendChild(sp);
-          const sv = document.createElement('button'); sv.textContent = '🔁 озвучить'; sv.style.cssText = 'padding:4px 10px;background:#ecfdf5;';
-          sv.onclick = async () => {
-            sv.disabled = true; sv.textContent = '…';
-            try {
-              const r = await api(`/admin/tts_sentence/${w.id}?voice=alsu`, { method: 'POST' });
-              w.sentence_audio_url = r.sentence_audio_url; render(); play(r.sentence_audio_url);
-            } catch (e) { alert(e.message); sv.disabled = false; sv.textContent = '🔁 озвучить'; }
+          const mkSentVoice = (voice, label) => {
+            const sv = document.createElement('button'); sv.textContent = label; sv.style.cssText = 'padding:4px 10px;background:#ecfdf5;';
+            sv.onclick = async () => {
+              sv.disabled = true; sv.textContent = '…';
+              try {
+                const r = await api(`/admin/tts_sentence/${w.id}?voice=${voice}`, { method: 'POST' });
+                w.sentence_audio_url = r.sentence_audio_url; render(); play(r.sentence_audio_url);
+              } catch (e) { alert(e.message); sv.disabled = false; sv.textContent = label; }
+            };
+            return sv;
           };
-          sbox.appendChild(sv);
+          sbox.appendChild(mkSentVoice('alsu', '🔁 Алсу'));
+          sbox.appendChild(mkSentVoice('almaz', '🔁 Алмаз'));
+          // запись предложения своим голосом (до 12 с — фразы длиннее слова)
+          const srec = document.createElement('button'); srec.textContent = '🎙 записать';
+          srec.style.cssText = 'padding:4px 10px;background:#fee2e2;';
+          srec.onclick = () => startRecording(row, srec, {
+            maxMs: 12000,
+            save: async wav => {
+              const fd = new FormData(); fd.append('file', wav, `sentence_${w.id}.wav`);
+              const r = await api(`/admin/sentence_audio/${w.id}`, { method: 'POST', body: fd });
+              w.sentence_audio_url = r.sentence_audio_url;
+              render();
+              play(r.sentence_audio_url);
+            },
+          });
+          sbox.appendChild(srec);
         }
         const se = document.createElement('button'); se.textContent = '✏️'; se.style.cssText = 'padding:4px 10px;';
         se.onclick = async () => {
@@ -350,7 +376,8 @@
     }
     window.__processRecording = processRecording; // для автотеста
 
-    async function startRecording(w, row, btn) {
+    // cfg: { maxMs?: авто-стоп записи, save: async (wavBlob) => сохранение на сервер }
+    async function startRecording(row, btn, cfg) {
       if (!window.isSecureContext || !navigator.mediaDevices) {
         alert('Запись работает только на https-версии: https://62.113.108.107:8443');
         return;
@@ -365,14 +392,15 @@
       const rec = new MediaRecorder(stream);
       const chunks = [];
       rec.ondataavailable = e => chunks.push(e.data);
+      const origText = btn.textContent, origBg = btn.style.background;
       btn.dataset.rec = '1'; btn.textContent = '⏹ стоп'; btn.style.background = '#fecaca';
       const stop = () => { if (rec.state === 'recording') rec.stop(); };
       window.__stopRec = stop;
-      const autoStop = setTimeout(stop, 5000);
+      const autoStop = setTimeout(stop, cfg.maxMs || 5000);
       rec.onstop = async () => {
         clearTimeout(autoStop);
         stream.getTracks().forEach(t => t.stop());
-        btn.dataset.rec = ''; btn.textContent = '🎙 записать'; btn.style.background = '#fee2e2';
+        btn.dataset.rec = ''; btn.textContent = origText; btn.style.background = origBg;
         let wav;
         try {
           wav = await processRecording(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }));
@@ -386,13 +414,9 @@
         const save = document.createElement('button'); save.textContent = '💾 сохранить';
         save.style.background = '#dcfce7';
         save.onclick = async () => {
-          const fd = new FormData(); fd.append('file', wav, `word_${w.id}.wav`);
           try {
-            const r = await api(`/admin/word_audio/${w.id}`, { method: 'POST', body: fd });
-            w.audio_url = r.audio_url;
+            await cfg.save(wav);
             URL.revokeObjectURL(url);
-            render();
-            play(r.audio_url);
           } catch (e) { alert(e.message); }
         };
         const cancel = document.createElement('button'); cancel.textContent = '✖';

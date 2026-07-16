@@ -400,6 +400,31 @@ async def set_sentence(
             "sentence_ru": word.sentence_ru, "sentence_audio_url": word.sentence_audio_url}
 
 
+@router.post("/sentence_audio/{word_id}")
+async def sentence_audio(
+    word_id: int,
+    file: UploadFile = File(...),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Загрузка собственной записи предложения (заменяет TTS-озвучку)."""
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word or not word.sentence_tt:
+        raise HTTPException(status_code=404, detail="Нет слова или предложения")
+    ext = (file.filename or 'a.wav').rsplit('.', 1)[-1].lower()
+    if ext not in ('wav', 'mp3', 'ogg', 'webm', 'm4a'):
+        raise HTTPException(status_code=400, detail="Ожидается аудио (wav/mp3/ogg/webm/m4a)")
+    from pathlib import Path
+    from ..config import STATIC_DIR
+    target_dir = Path(STATIC_DIR) / 'voice' / 'uploads'
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"sentence_{word.id}.{ext}"
+    target.write_bytes(await file.read())
+    word.sentence_audio_url = f"/static/voice/uploads/{target.name}?v={int(time.time())}"  # cache-bust при перезаписи
+    await db.commit()
+    return {"word_id": word.id, "sentence_audio_url": word.sentence_audio_url}
+
+
 @router.post("/tts_sentence/{word_id}")
 async def tts_sentence(
     word_id: int,
