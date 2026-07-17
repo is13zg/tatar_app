@@ -932,6 +932,8 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             e = ex_pick_image(w, pool + review_words) or ex_yes_no(w, pool + review_words)
         if e:
             e["review"] = True
+            if w.get("mistake"):
+                e["mistake"] = True  # из очереди «работы над ошибками»
             practice.append(e)
 
     random.shuffle(practice)
@@ -963,6 +965,34 @@ async def due_review_words(db: AsyncSession, user: User, limit: int, exclude_the
         dto["phrase"] = theme_title in PHRASE_THEMES
         result.append(dto)
     return result[:limit]
+
+
+async def pending_mistake_words(db: AsyncSession, user: User, limit: int,
+                                exclude_ids: Optional[set] = None) -> list[dict]:
+    """Очередь «работы над ошибками»: слова с незакрытыми ошибками (UserMistake.count > 0)
+    едут за учеником и подмешиваются в следующие уроки, пока он не ответит верно —
+    верный ответ в любом упражнении сбрасывает count и слово покидает очередь.
+    Самые «трудные» (много ошибок подряд) — первыми."""
+    q = (
+        select(Word, Theme.title_ru)
+        .join(UserMistake, UserMistake.word_id == Word.id)
+        .join(Theme, Theme.id == Word.theme_id)
+        .where(UserMistake.user_id == user.id, UserMistake.count > 0)
+        .order_by(UserMistake.count.desc(), UserMistake.word_id)
+        .limit(limit * 3)
+    )
+    rows = (await db.execute(q)).all()
+    result = []
+    for w, theme_title in rows:
+        if exclude_ids and w.id in exclude_ids:
+            continue
+        dto = word_dto(w)
+        dto["phrase"] = theme_title in PHRASE_THEMES
+        dto["mistake"] = True
+        result.append(dto)
+        if len(result) == limit:
+            break
+    return result
 
 
 async def unit_progress_map(db: AsyncSession, user: User) -> dict[int, UnitProgress]:
@@ -1139,6 +1169,12 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         if not new_words:
             new_words = pool[-NEW_WORDS_PER_LESSON:]
         review = await due_review_words(db, user, 3, exclude_theme=theme_id)
+        # работа над ошибками: незакрытые ошибки едут за учеником — до 4 в каждый урок,
+        # они важнее планового повторения (его ужимаем, чтобы урок не разбухал)
+        mistake_words = await pending_mistake_words(
+            db, user, 4, {w["id"] for w in new_words} | {w["id"] for w in review})
+        if mistake_words:
+            review = review[:2] + mistake_words
 
         sort_payload = None
         if not phrase_mode:
@@ -1273,8 +1309,12 @@ async def daily_lesson(db: Annotated[AsyncSession, Depends(get_db)], user: Annot
     if existing and existing.items_json:
         return {"completed": False, "date": date, "items": json.loads(existing.items_json)}
 
-    # новое задание дня: повторение (главный канал SRS) + немного нового из текущего юнита
+    # новое задание дня: повторение (главный канал SRS) + немного нового из текущего юнита;
+    # незакрытые ошибки — в приоритете перед плановым повторением
     review = await due_review_words(db, user, DAILY_REVIEW_LIMIT)
+    mistake_words = await pending_mistake_words(db, user, 4, {w["id"] for w in review})
+    if mistake_words:
+        review = mistake_words + review[:max(0, DAILY_REVIEW_LIMIT - len(mistake_words))]
 
     units = await get_ordered_units(db)
     progress = await unit_progress_map(db, user)
