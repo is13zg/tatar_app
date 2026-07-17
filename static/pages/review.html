@@ -6,7 +6,10 @@
   <title>Проверка слов — TT-Learn Kids</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; background: #f8fafc; }
+    @font-face { font-family: "Nunito"; font-style: normal; font-weight: 400; font-display: swap; src: url("/static/fonts/nunito-400.woff2") format("woff2"); }
+    @font-face { font-family: "Nunito"; font-style: normal; font-weight: 700; font-display: swap; src: url("/static/fonts/nunito-700.woff2") format("woff2"); }
+    body { font-family: "Nunito", system-ui, sans-serif; margin: 0; background: #f8fafc; }
+    button, input, select { font-family: inherit; }
     header { display: flex; gap: 12px; align-items: center; padding: 12px 16px; background: white; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 10; flex-wrap: wrap; }
     header a { color: #2563eb; text-decoration: none; }
     h1 { font-size: 18px; margin: 0; }
@@ -65,6 +68,7 @@
       <option value="rec">Своя запись 🎙</option>
       <option value="tts">Озвучка TTS 🤖</option>
       <option value="flagged">🚩 Помеченные картинки</option>
+      <option value="constructor">🧩 Предложения-конструктор (2–5 слов)</option>
     </select>
   </header>
 
@@ -123,6 +127,11 @@
         if (f === 'rec' && !isRec) return;
         if (f === 'tts' && isRec) return;
         if (f === 'flagged' && !w.image_flag) return;
+        if (f === 'constructor') {
+          // та же токенизация, что в движке: конструктор берёт предложения из 2–5 слов
+          const n = (w.sentence_tt || '').split(/[^\wәөүҗңһӘӨҮҖҢҺ-]+/).filter(Boolean).length;
+          if (!(n >= 2 && n <= 5)) return;
+        }
         shown++;
 
         const row = document.createElement('div');

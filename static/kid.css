@@ -1,4 +1,29 @@
 /* Общие детские стили TT-Learn Kids */
+
+/* Nunito: округлый детский шрифт с полной татарской кириллицей (ә ө ү җ ң һ) —
+   без него эти буквы падали в системный фолбэк и выбивались из стиля */
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/static/fonts/nunito-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/static/fonts/nunito-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/static/fonts/nunito-800.woff2") format("woff2");
+}
+
 :root {
   --bg1: #fef6e4;
   --bg2: #e0f2fe;
@@ -13,10 +38,11 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { overflow-x: hidden; } /* анимации (shake/конфетти) не должны дёргать страницу вбок */
 button, .tile, .mem-card, .basket, .letter-tile { touch-action: manipulation; }
+button, input, select, textarea { font-family: inherit; } /* кнопки не наследуют шрифт сами — а в них татарский текст */
 html, body { height: 100%; }
 body {
   margin: 0;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
   color: var(--ink);
   background: linear-gradient(160deg, var(--bg1), var(--bg2));
   min-height: 100dvh;

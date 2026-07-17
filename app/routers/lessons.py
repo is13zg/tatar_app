@@ -216,8 +216,9 @@ def ex_card(w: dict) -> dict:
     return {"type": "card", "word": w}
 
 
-# «Презентационные» мини-игры подачи слова (уроки 1-2, без оценки, провал невозможен):
-# сюрприз-коробка, тень, раскраска, вырасти. Ротация даёт разнообразие с первого урока.
+# «Презентационные» мини-игры подачи слова (уроки 1-2, без оценки, провал невозможен).
+# color_reveal/grow_reveal убраны из ротации по просьбе владельца («просто нажимай» —
+# слишком статичны); рендереры на фронте оставлены, форматы можно вернуть одной строкой.
 
 def ex_surprise_box(w: dict) -> dict:
     return {"type": "surprise_box", "word": w}
@@ -235,7 +236,7 @@ def ex_grow_reveal(w: dict) -> dict:
     return {"type": "grow_reveal", "word": w}
 
 
-PRESENTERS = [ex_card, ex_surprise_box, ex_shadow_reveal, ex_color_reveal, ex_grow_reveal]
+PRESENTERS = [ex_card, ex_surprise_box, ex_shadow_reveal]
 
 
 def ex_pick_image(target: dict, pool: list[dict]) -> Optional[dict]:
@@ -714,8 +715,8 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                 practice.append(ex_repeat_after(w))
     else:
         # подача с немедленным закреплением: мини-игра подачи → закрепление на это же слово
-        # формат подачи ротируется (карточка/коробка/тень/раскраска/рост) — разнообразие с урока 1;
-        # закрепление со 2-го урока иногда становится «пузырями» или «покорми Акбая»
+        # формат подачи ротируется (карточка/коробка/тень) — разнообразие с урока 1;
+        # закрепление со 2-го урока чаще становится игрой («пузыри», «покорми Акбая»)
         start_fmt = random.randrange(len(PRESENTERS))
         for i, w in enumerate(new_words):
             presenter = PRESENTERS[(start_fmt + i) % len(PRESENTERS)]
@@ -723,9 +724,9 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             e = None
             if sentences_ok:
                 r = random.random()
-                if r < 0.25:
+                if r < 0.35:
                     e = ex_bubbles(w, pool)
-                elif feed_ok and r < 0.45:  # «покорми Акбая» — только на съедобных темах
+                elif feed_ok and r < 0.6:  # «покорми Акбая» — только на съедобных темах
                     e = ex_feed(w, pool)
             if not e:
                 e = ex_pick_image(w, pool)
@@ -777,11 +778,17 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             extra_gens.append(lambda: ex_flashlight(random.choice(new_words), pool))
         if late_unit:
             extra_gens.append(lambda: ex_chain(pool))
+            extra_gens.append(lambda: ex_moles(random.choice(new_words), pool))  # «норки» не только в боссе
         random.shuffle(extra_gens)
-        for gen in extra_gens[:1]:
+        # два бонусных игровых формата за урок (было один): больше интерактива по просьбе владельца
+        added = 0
+        for gen in extra_gens:
+            if added >= 2:
+                break
             e = gen()
             if e:
                 practice.append(e)
+                added += 1
         voiced_new = [w for w in new_words if w["audio_url"]]
         random.shuffle(voiced_new)
         for i, w in enumerate(voiced_new[:2]):  # продукция: два «повтори за диктором»
