@@ -46,6 +46,7 @@ INSTRUCTIONS = {
     "povtori_cepochku": "Повтори цепочку!",
     "chto_lishnee": "Что здесь лишнее?",
     "najdi_naoborot": "Найди наоборот!",
+    "otvet_na_vopros": "Ответь на вопрос!",
     "povtori_za_diktorom": "Повтори за диктором",
     "molodec": "Молодец!",
     "molodec_otlichno": "Молодец! Отлично!",

@@ -47,6 +47,7 @@
     'Открывай окошки и запоминай!': 'otkryvaj_okoshki',
     'Что здесь лишнее?': 'chto_lishnee',
     'Найди наоборот!': 'najdi_naoborot',
+    'Ответь на вопрос!': 'otvet_na_vopros',
     'Посвети! Кто прячется в темноте?': 'posveti_fonarikom',
     'Повтори цепочку!': 'povtori_cepochku',
     'Послушай и найди картинку': 'najdi_kartinku',
@@ -244,6 +245,21 @@
         wrap.appendChild(row);
         wrap.appendChild(el('div', 'word-small', 'Слышишь слово — ищи наоборот!'));
         speakRuBrowser('Я называю слово, а ты ищи наоборот! Большой — а наоборот маленький.');
+      } else if (type === 'question') {
+        wrap.appendChild(el('div', 'instr', '🗣 Игра «Әйе — Юк»'));
+        const row = el('div', ''); row.style.cssText = 'display:flex;gap:24px;justify-content:center;';
+        const yes = el('div', ''); yes.style.textAlign = 'center';
+        yes.appendChild(el('div', '', '👍')).style.fontSize = '54px';
+        yes.appendChild(el('div', 'word-big', 'Әйе'));
+        yes.appendChild(el('div', 'word-small', 'да'));
+        const no = el('div', ''); no.style.textAlign = 'center';
+        no.appendChild(el('div', '', '👎')).style.fontSize = '54px';
+        no.appendChild(el('div', 'word-big', 'Юк'));
+        no.appendChild(el('div', 'word-small', 'нет'));
+        row.appendChild(yes); row.appendChild(no);
+        wrap.appendChild(row);
+        wrap.appendChild(el('div', 'word-small', 'Слушай вопрос и отвечай по-татарски!'));
+        speakRuBrowser('Я спрашиваю по-татарски! Если да — жми Әйе. Если нет — жми Юк!');
       } else { // odd_one
         wrap.appendChild(el('div', 'instr', '🧐 Игра «Что лишнее»'));
         const row = el('div', ''); row.style.cssText = 'display:flex;gap:12px;';
@@ -988,6 +1004,44 @@
     speakThenPlay('Это правильная картинка?', item.audio_url);
   }
 
+  async function rQuestion(item, screen, done) {
+    // вопрос по-татарски («Бу песиме?») — ответ тоже по-татарски: Әйе/Юк
+    if (!introSeen('question')) await showExerciseIntro('question', screen);
+    screen.innerHTML = '';
+    screen.appendChild(el('div', 'instr', '🗣 Ответь: Әйе или Юк!'));
+    const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:8px;';
+    const play = el('button', 'play-btn small', '🔊');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    const tw = el('div', 'word-big', item.text_tt);
+    if ((item.text_tt || '').length > 14) tw.style.fontSize = '24px';
+    head.appendChild(tw);
+    screen.appendChild(head);
+    const vis = el('div', 'big-visual'); vis.appendChild(visual(item.shown)); screen.appendChild(vis);
+    const row = el('div', 'yn-row');
+    let locked = false;
+    const answer = async (saidYes) => {
+      if (locked) return; locked = true;
+      const ok = saidYes === item.is_match;
+      reportAnswer(item.word_id, ok, 'question');
+      await playAudio(saidYes ? item.aye_audio : item.yuk_audio); // ребёнок «говорит» свой ответ
+      feedback(ok); await playFx(ok);
+      if (!item.is_match) {
+        // обучающая поправка: «Бу X түгел» + имя того, кто на картинке
+        if (item.neg_audio) await playAudio(item.neg_audio);
+        if (item.shown_audio) await playAudio(item.shown_audio);
+      }
+      await sleep(400);
+      done({ scored: true, ok });
+    };
+    const yes = el('button', 'kid-btn yn-yes', '👍 Әйе');
+    const no = el('button', 'kid-btn yn-no', '👎 Юк');
+    yes.onclick = () => answer(true);
+    no.onclick = () => answer(false);
+    row.appendChild(yes); row.appendChild(no); screen.appendChild(row);
+    speakThenPlay('Ответь на вопрос!', item.audio_url);
+  }
+
   function rMemory(item, screen, done) {
     screen.appendChild(el('div', 'instr', '🃏 Найди пары: картинка и звук'));
     const grid = el('div', 'mem-grid'); screen.appendChild(grid);
@@ -1275,6 +1329,7 @@
     grow_reveal: rGrowReveal,
     pick_image: rPickImage,
     yes_no: rYesNo,
+    question: rQuestion,
     memory: rMemory,
     sort_baskets: rSortBaskets,
     pick_word_audio: rPickWordAudio,

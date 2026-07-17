@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..deps import get_current_user
 from ..database import get_db
+from ..qneg import QUESTION_THEMES as QNEG_THEMES
 from ..models import (
     User, Theme, Word, UserProgress, UserMistake,
     UnitProgress, DailyLesson, UserSticker, LessonResult,
@@ -644,6 +645,107 @@ def ex_build_sentence(target: dict, pool: list[dict]) -> Optional[dict]:
     }
 
 
+# ---- вопросы и отрицания: «Бу песиме?» / «Бу песи түгел» (формы: app/qneg.py) ----
+
+def _qneg_ready(target: dict) -> bool:
+    """Слово годится и его вопрос/отрицание предозвучены (tools/gen_qneg_tts.py)."""
+    from ..qneg import qneg_eligible, question_phrase
+    from ..tts import cached_tts_url
+    return (bool(target["audio_url"]) and target["text_tt"].lower() not in CATEGORY_TT
+            and qneg_eligible(target["text_tt"])
+            and cached_tts_url(question_phrase(target["text_tt"])) is not None)
+
+
+def ex_question(target: dict, pool: list[dict]) -> Optional[dict]:
+    """Ответь на вопрос: звучит «Бу песиме?», картинка совпадает или нет — Әйе/Юк.
+    При несовпадении ребёнок слышит поправку: «Бу песи түгел» + имя показанного."""
+    from ..qneg import AYE, YUK, negation_phrase, question_phrase
+    from ..tts import cached_tts_url
+    if not _qneg_ready(target):
+        return None
+    q_url = cached_tts_url(question_phrase(target["text_tt"]))
+    aye, yuk = cached_tts_url(AYE), cached_tts_url(YUK)
+    if not q_url or not aye or not yuk:
+        return None
+    is_match = random.random() < 0.5
+    shown = target
+    if not is_match:
+        safe_pool = [p for p in pool
+                     if p["text_tt"].lower() not in CATEGORY_TT and p["audio_url"]
+                     and not confusable(p["text_tt"], target["text_tt"])]
+        others = distinct_visual_sample(target, safe_pool, 1)
+        if not others:
+            is_match = True
+        else:
+            shown = others[0]
+    return {
+        "type": "question",
+        "word_id": target["id"],
+        "text_tt": question_phrase(target["text_tt"]),
+        "audio_url": q_url,
+        "is_match": is_match,
+        "shown": {"id": shown["id"], "image_url": shown["image_url"], "emoji": shown["emoji"]},
+        "aye_audio": aye,
+        "yuk_audio": yuk,
+        "neg_audio": cached_tts_url(negation_phrase(target["text_tt"])),
+        "shown_audio": shown["audio_url"],  # поправка: «Бу X түгел» + кто на самом деле
+    }
+
+
+def ex_build_qneg(target: dict, pool: list[dict]) -> Optional[dict]:
+    """Собери вопрос или отрицание из плиток: «Бу песиме?» / «Бу песи түгел».
+    Ловушка — обычная форма слова («песи» рядом с «песиме»): учит замечать частицу."""
+    from ..qneg import BU, TUGEL, negation_phrase, question_phrase, question_word
+    from ..tts import cached_tts_url
+    if not _qneg_ready(target):
+        return None
+    bu, tugel = cached_tts_url(BU), cached_tts_url(TUGEL)
+    qw = cached_tts_url(question_word(target["text_tt"]))
+    word_lower = target["text_tt"].lower()
+    plain = target["audio_url"]
+    if not bu or not tugel or not qw:
+        return None
+    if random.random() < 0.5:
+        # вопрос: Бу песиме? (картинка совпадает — спрашиваем про неё)
+        phrase = question_phrase(target["text_tt"])
+        tokens = ["Бу", question_word(target["text_tt"])]
+        tiles = [{"text": "Бу", "audio_url": bu},
+                 {"text": question_word(target["text_tt"]), "audio_url": qw},
+                 {"text": word_lower, "audio_url": plain}]  # ловушка: слово без частицы
+        shown = target
+        sentence_ru = f"Это {target['text_ru']}?"
+    else:
+        # отрицание: Бу песи түгел — на картинке ДРУГОЕ слово
+        safe_pool = [p for p in pool
+                     if p["text_tt"].lower() not in CATEGORY_TT and p["audio_url"]
+                     and not confusable(p["text_tt"], target["text_tt"])]
+        others = distinct_visual_sample(target, safe_pool, 1)
+        if not others:
+            return None
+        shown = others[0]
+        phrase = negation_phrase(target["text_tt"])
+        tokens = ["Бу", word_lower, TUGEL]
+        tiles = [{"text": "Бу", "audio_url": bu},
+                 {"text": word_lower, "audio_url": plain},
+                 {"text": TUGEL, "audio_url": tugel},
+                 {"text": question_word(target["text_tt"]), "audio_url": qw}]  # ловушка
+        sentence_ru = f"Это не {target['text_ru']}."
+    full = cached_tts_url(phrase)
+    if not full:
+        return None
+    random.shuffle(tiles)
+    return {
+        "type": "build_sentence",
+        "word_id": target["id"],
+        "image_url": shown["image_url"],
+        "emoji": shown["emoji"],
+        "audio_url": full,
+        "sentence_ru": sentence_ru,
+        "tokens": tokens,
+        "tiles": tiles,
+    }
+
+
 def _distinct_visual_pick(words: list[dict], n: int, seen: set[str]) -> Optional[list[dict]]:
     shuffled = list(words)
     random.shuffle(shuffled)
@@ -696,7 +798,8 @@ def _no_three_in_a_row(items: list[dict]) -> list[dict]:
 def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[dict],
                     sort_payload: Optional[dict] = None, phrase_mode: bool = False,
                     allow_build: bool = False, sentences_ok: bool = False,
-                    late_unit: bool = False, feed_ok: bool = False) -> list[dict]:
+                    late_unit: bool = False, feed_ok: bool = False,
+                    qneg_ok: bool = False) -> list[dict]:
     """Урок: чередование «карточка → сразу практика» + разнообразное закрепление.
     phrase_mode: тема из фраз — только карточки, звучание и повторение за диктором.
     allow_build: «собери слово» — только с 3-го урока юнита (для начала это слишком сложно)."""
@@ -750,9 +853,22 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             e = ex_pick_word_audio(w, pool)
             if e:
                 practice.append(e)
+        # вопрос «Бу X-мы?» с ответом Әйе/Юк — грамматика со 2-го урока предметных тем
+        if qneg_ok and sentences_ok:
+            for w in random.sample(new_words, len(new_words)):
+                e = ex_question(w, pool)
+                if e:
+                    practice.append(e)
+                    break
         if allow_build:
             built = None
-            if sentences_ok and random.random() < 0.5:
+            if qneg_ok and random.random() < 0.35:
+                # конструктор вопроса/отрицания вместо обычного предложения
+                for w in random.sample(new_words, len(new_words)):
+                    built = ex_build_qneg(w, pool)
+                    if built:
+                        break
+            if not built and sentences_ok and random.random() < 0.5:
                 for w in random.sample(new_words, len(new_words)):
                     built = ex_build_sentence(w, pool)
                     if built:
@@ -1046,7 +1162,8 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                                 phrase_mode=phrase_mode, allow_build=lesson_no >= 3,
                                 sentences_ok=lesson_no >= 2,
                                 late_unit=(theme.order_index or 0) >= 14,
-                                feed_ok=theme.title_ru in EDIBLE_THEMES)
+                                feed_ok=theme.title_ru in EDIBLE_THEMES,
+                                qneg_ok=theme.title_ru in QNEG_THEMES)
 
     if len(items) < 3:
         # страховка: без озвучки/картинок упражнения могли не собраться — даём карточки
@@ -1075,7 +1192,8 @@ def _practice_items(words: list[dict], pool: list[dict], limit: int = 10,
     items: list[dict] = []
     for w in words[:limit]:
         gens = [lambda: ex_pick_image(w, pool), lambda: ex_yes_no(w, pool),
-                lambda: ex_pick_word_audio(w, pool), lambda: ex_bubbles(w, pool)]
+                lambda: ex_pick_word_audio(w, pool), lambda: ex_bubbles(w, pool),
+                lambda: ex_question(w, pool)]  # сработает только для слов с озвученным вопросом
         if feed_theme_ids and w.get("theme_id") in feed_theme_ids:  # «покорми» — только съедобное
             gens.append(lambda: ex_feed(w, pool))
         random.shuffle(gens)
@@ -1183,7 +1301,8 @@ async def daily_lesson(db: Annotated[AsyncSession, Depends(get_db)], user: Annot
     fresh = [w for w in pool if w["id"] not in seen_ids][:3]
 
     items = build_exercises(fresh, pool, review, phrase_mode=current_unit.title_ru in PHRASE_THEMES,
-                            sentences_ok=True, feed_ok=current_unit.title_ru in EDIBLE_THEMES)
+                            sentences_ok=True, feed_ok=current_unit.title_ru in EDIBLE_THEMES,
+                            qneg_ok=current_unit.title_ru in QNEG_THEMES)
     if not items:
         raise HTTPException(status_code=400, detail="Не удалось собрать задание")
 
