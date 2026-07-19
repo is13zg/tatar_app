@@ -17,6 +17,7 @@ _COLUMNS: dict[str, dict[str, str]] = {
         "sentence_tt": "VARCHAR(255)",
         "sentence_ru": "VARCHAR(255)",
         "sentence_audio_url": "VARCHAR(255)",
+        "image_prompt": "TEXT",
     },
     "user_progress": {
         "strength": "INTEGER DEFAULT 0",

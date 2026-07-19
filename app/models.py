@@ -46,6 +46,7 @@ class Word(Base):
     emoji: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     tts_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     image_flag: Mapped[int] = mapped_column(Integer, default=0)  # 1 = картинка помечена как неудачная
+    image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # последний промпт генерации
     sentence_tt: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     sentence_ru: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     sentence_audio_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

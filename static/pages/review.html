@@ -230,6 +230,32 @@
         };
         upI.appendChild(finI); actions.appendChild(upI);
 
+        // перегенерация картинки Cloudflare flux: показать промпт → поправить → сгенерировать
+        const genBtn = document.createElement('button');
+        genBtn.textContent = '🎨 сгенерир.';
+        genBtn.style.background = '#ede9fe';
+        genBtn.title = 'Сгенерировать картинку заново (Cloudflare AI), промпт можно поправить';
+        genBtn.onclick = async () => {
+          genBtn.disabled = true;
+          try {
+            const info = await api(`/admin/image_prompt/${w.id}`);
+            const p = prompt(
+              `Промпт для «${w.text_tt} — ${w.text_ru}» (flux, англ. работает лучше). Правьте и ОК:`,
+              info.prompt);
+            if (p === null || !p.trim()) { genBtn.disabled = false; return; }
+            genBtn.textContent = '⏳ генерирую…';
+            const r = await api(`/admin/gen_image/${w.id}`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: p.trim() }),
+            });
+            w.image_url = r.image_url; w.image_flag = 0;
+            render();
+            zoomImage(r.image_url, `${w.text_tt} — ${w.text_ru}`); // сразу показать результат крупно
+          } catch (e) { alert(e.message); }
+          genBtn.disabled = false; genBtn.textContent = '🎨 сгенерир.';
+        };
+        actions.appendChild(genBtn);
+
         const flagBtn = document.createElement('button');
         flagBtn.textContent = w.image_flag ? '🚩 помечена' : '🏳 пометить';
         flagBtn.style.background = w.image_flag ? '#fecaca' : '#e2e8f0';

@@ -535,3 +535,53 @@ async def word_image(
     word.image_url = f"/static/image/uploads/{target.name}?v={int(time.time())}"  # cache-bust при перезаписи
     await db.commit()
     return {"word_id": word.id, "image_url": word.image_url}
+
+
+@router.get("/image_prompt/{word_id}")
+async def image_prompt(
+    word_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Текущий промпт генерации картинки: сохранённый или дефолтный (EN_GLOSS + CF-шаблон)."""
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word:
+        raise HTTPException(status_code=404, detail="Слово не найдено")
+    from ..imagegen import default_prompt
+    return {"word_id": word.id,
+            "prompt": word.image_prompt or default_prompt(word.text_ru),
+            "is_custom": bool(word.image_prompt)}
+
+
+@router.post("/gen_image/{word_id}")
+async def gen_image(
+    word_id: int,
+    payload: dict = Body(...),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Перегенерация картинки через Cloudflare Workers AI (flux-1-schnell) с заданным промптом."""
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word:
+        raise HTTPException(status_code=404, detail="Слово не найдено")
+    prompt = (payload.get("prompt") or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Пустой промпт")
+    if len(prompt) > 900:
+        raise HTTPException(status_code=400, detail="Промпт слишком длинный (максимум 900 символов)")
+    from ..imagegen import generate_cf
+    try:
+        png = await generate_cf(prompt)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Cloudflare AI: {e}")
+    from pathlib import Path
+    from ..config import STATIC_DIR
+    target_dir = Path(STATIC_DIR) / 'image' / 'uploads'
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"word_{word.id}.png"
+    target.write_bytes(png)
+    word.image_url = f"/static/image/uploads/{target.name}?v={int(time.time())}"
+    word.image_prompt = prompt   # админ видит при следующей генерации именно этот промпт
+    word.image_flag = 0          # новая картинка снимает пометку «неудачная»
+    await db.commit()
+    return {"word_id": word.id, "image_url": word.image_url, "prompt": word.image_prompt}
