@@ -34,7 +34,8 @@ CATEGORY_TT = {"хайван", "кош", "бөҗәк", "ашамлык", "кие
 
 # Темы-«фразники»: слова учим только через карточки, звучание и повторение за диктором —
 # выбор картинки для «как дела?» бессмыслен.
-PHRASE_THEMES = {"Привет и пока", "Давай знакомиться", "Вежливые слова"}
+PHRASE_THEMES = {"Привет и пока", "Давай знакомиться", "Вежливые слова",
+                 "Чей? Кому? У кого?"}  # падежные формы местоимений — абстракции без картинок
 
 # Дневной лимит НОВЫХ слов: методист — «очередь повторений растёт лавинообразно».
 NEW_WORDS_DAILY_LIMIT = 10
@@ -65,6 +66,16 @@ SORT_INCOMPATIBLE = {
 
 # Минимальные пары, неразличимые для новичка на слух, — не ставить дистракторами друг к другу.
 CONFUSABLE_TT = {
+    # падежные формы местоимений: мин/син-ряды различаются одной буквой на слух
+    frozenset({"мине", "сине"}),
+    frozenset({"миңа", "сиңа"}),
+    frozenset({"миннән", "синнән"}),
+    frozenset({"миндә", "синдә"}),
+    frozenset({"минем", "синең"}),
+    frozenset({"аны", "аңа"}),
+    frozenset({"аннан", "анда"}),
+    frozenset({"мин", "мине"}),
+    frozenset({"син", "сине"}),
     frozenset({"тел", "теш"}),
     frozenset({"иртә", "иртәгә"}),
     frozenset({"каймак", "коймак"}),
@@ -311,13 +322,23 @@ def ex_memory(words: list[dict]) -> Optional[dict]:
 
 
 def ex_pick_word_audio(target: dict, pool: list[dict]) -> Optional[dict]:
-    distractors = [
+    cands = [
         p for p in pool
         if p["id"] != target["id"] and p["audio_url"] and not confusable(p["text_tt"], target["text_tt"])
     ]
-    if not target["audio_url"] or len(distractors) < 2:
+    if not target["audio_url"]:
         return None
-    options = random.sample(distractors, 2) + [target]
+    # дистракторы не должны быть созвучны и МЕЖДУ СОБОЙ (мине/сине рядом — лишний шум)
+    random.shuffle(cands)
+    distractors: list[dict] = []
+    for p in cands:
+        if all(not confusable(p["text_tt"], d["text_tt"]) for d in distractors):
+            distractors.append(p)
+            if len(distractors) == 2:
+                break
+    if len(distractors) < 2:
+        return None
+    options = distractors + [target]
     random.shuffle(options)
     return {
         "type": "pick_word_audio",
