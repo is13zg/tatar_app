@@ -453,7 +453,7 @@
     // cfg: { maxMs?: авто-стоп записи, save: async (wavBlob) => сохранение на сервер }
     async function startRecording(row, btn, cfg) {
       if (!window.isSecureContext || !navigator.mediaDevices) {
-        alert('Запись работает только на https-версии: https://300stm.ru (или https://62.113.108.107:8443)');
+        alert('Запись работает только на https-версии: https://tat.300stm.ru (или https://62.113.108.107:8443)');
         return;
       }
       if (btn.dataset.rec === '1') { btn._stopRec && btn._stopRec(); return; }
