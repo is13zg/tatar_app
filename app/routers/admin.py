@@ -311,6 +311,9 @@ async def word_audio(
         raise HTTPException(status_code=400, detail="Пустой файл")
     if len(data) > 10_000_000:
         raise HTTPException(status_code=400, detail="Файл слишком большой (максимум 10 МБ)")
+    if ext == 'wav':
+        from ..media import optimize_wav
+        data = optimize_wav(data) or data  # 44100/стерео → 22050/моно
     target_dir = Path(STATIC_DIR) / 'voice' / 'uploads'
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"word_{word.id}.{ext}"
@@ -426,6 +429,9 @@ async def sentence_audio(
         raise HTTPException(status_code=400, detail="Пустой файл")
     if len(data) > 10_000_000:
         raise HTTPException(status_code=400, detail="Файл слишком большой (максимум 10 МБ)")
+    if ext == 'wav':
+        from ..media import optimize_wav
+        data = optimize_wav(data) or data  # 44100/стерео → 22050/моно
     target_dir = Path(STATIC_DIR) / 'voice' / 'uploads'
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"sentence_{word.id}.{ext}"
@@ -526,12 +532,22 @@ async def word_image(
     if ext not in ('png', 'jpg', 'jpeg', 'webp', 'svg'):
         raise HTTPException(status_code=400, detail="Ожидается изображение (png/jpg/webp/svg)")
 
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Пустой файл")
+    if ext != 'svg':
+        from ..media import optimize_image
+        opt = optimize_image(data)
+        if opt:
+            data = opt
+        ext = 'png'  # единое имя word_N.png, формат браузер определяет по содержимому
+
     from pathlib import Path
     from ..config import STATIC_DIR
     target_dir = Path(STATIC_DIR) / 'image' / 'uploads'
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"word_{word.id}.{ext}"
-    target.write_bytes(await file.read())
+    target.write_bytes(data)
     word.image_url = f"/static/image/uploads/{target.name}?v={int(time.time())}"  # cache-bust при перезаписи
     await db.commit()
     return {"word_id": word.id, "image_url": word.image_url}
@@ -637,6 +653,8 @@ async def gen_image(
         png = await generate_cf(prompt)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Cloudflare AI: {e}")
+    from ..media import optimize_image
+    png = optimize_image(png) or png  # 1024px от flux ужимаем до 512
     from pathlib import Path
     from ..config import STATIC_DIR
     target_dir = Path(STATIC_DIR) / 'image' / 'uploads'
