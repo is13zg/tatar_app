@@ -537,6 +537,69 @@ async def word_image(
     return {"word_id": word.id, "image_url": word.image_url}
 
 
+@router.post("/word_edit/{word_id}")
+async def word_edit(
+    word_id: int,
+    payload: dict = Body(...),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Полная правка слова: татарский текст и/или перевод. id сохраняется —
+    прогресс и SRS детей по слову не теряются (замена на слово того же смысла).
+    При смене татарского текста слово переозвучивается (alsu), старая запись
+    и промпт картинки сбрасываются; предложение остаётся — его правят отдельно."""
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word:
+        raise HTTPException(status_code=404, detail="Слово не найдено")
+    new_tt = (payload.get("text_tt") or "").strip()
+    new_ru = (payload.get("text_ru") or "").strip()
+    if not new_tt or not new_ru:
+        raise HTTPException(status_code=400, detail="Слово и перевод не могут быть пустыми")
+    if len(new_tt) > 100 or len(new_ru) > 100:
+        raise HTTPException(status_code=400, detail="Слишком длинно (максимум 100 символов)")
+    tt_changed = new_tt.lower() != word.text_tt.lower()
+    word.text_tt = new_tt
+    word.text_ru = new_ru
+    if tt_changed:
+        word.audio_url = None       # старая запись — про старое слово
+        word.image_prompt = None    # промпт генерился под старый смысл
+        try:
+            word.tts_url = await synthesize_to_file(new_tt)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Слово сохранено, но озвучка не удалась: {e}")
+        # предозвучка вопроса/отрицания для новых упражнений (не критично при сбое)
+        try:
+            from ..qneg import negation_phrase, qneg_eligible, question_phrase, question_word
+            if qneg_eligible(new_tt):
+                for phrase in (question_phrase(new_tt), negation_phrase(new_tt), question_word(new_tt)):
+                    await synthesize_to_file(phrase)
+        except Exception:
+            pass
+    await db.commit()
+    # подсказка админу: предложение могло перестать содержать слово
+    sentence_stale = bool(word.sentence_tt and tt_changed
+                          and new_tt.lower() not in word.sentence_tt.lower())
+    return {"word_id": word.id, "text_tt": word.text_tt, "text_ru": word.text_ru,
+            "tts_url": word.tts_url, "audio_url": word.audio_url,
+            "sentence_stale": sentence_stale}
+
+
+@router.delete("/word/{word_id}")
+async def word_delete(
+    word_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Удаление слова навсегда. Прогресс/ошибки детей по нему удаляются каскадом
+    (FK ondelete=CASCADE + PRAGMA foreign_keys=ON); медиафайлы остаются на диске."""
+    word = (await db.execute(select(Word).where(Word.id == word_id))).scalar_one_or_none()
+    if not word:
+        raise HTTPException(status_code=404, detail="Слово не найдено")
+    await db.delete(word)
+    await db.commit()
+    return {"deleted": word_id}
+
+
 @router.get("/image_prompt/{word_id}")
 async def image_prompt(
     word_id: int,

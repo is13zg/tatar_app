@@ -150,7 +150,29 @@
         row.appendChild(thumb);
 
         const wt = document.createElement('div'); wt.className = 'wtext';
-        const tt = document.createElement('div'); tt.className = 'tt'; tt.textContent = w.text_tt;
+        const tt = document.createElement('div'); tt.className = 'tt';
+        tt.textContent = w.text_tt;
+        const editW = document.createElement('button');
+        editW.textContent = '✏️'; editW.title = 'Изменить слово и перевод (id и прогресс детей сохраняются)';
+        editW.style.cssText = 'padding:2px 8px;font-size:13px;margin-left:6px;vertical-align:middle;';
+        editW.onclick = async () => {
+          const ntt = prompt('Татарское слово:', w.text_tt);
+          if (ntt === null || !ntt.trim()) return;
+          const nru = prompt('Перевод (русский):', w.text_ru);
+          if (nru === null || !nru.trim()) return;
+          try {
+            const r = await api(`/admin/word_edit/${w.id}`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text_tt: ntt.trim(), text_ru: nru.trim() }),
+            });
+            w.text_tt = r.text_tt; w.text_ru = r.text_ru;
+            w.tts_url = r.tts_url; w.audio_url = r.audio_url;
+            render();
+            if (r.tts_url) play(r.tts_url);
+            if (r.sentence_stale) alert('⚠ Предложение больше не содержит это слово — поправьте его кнопкой ✏️ в жёлтом блоке');
+          } catch (e) { alert(e.message); }
+        };
+        tt.appendChild(editW);
         const ru = document.createElement('div'); ru.className = 'ru'; ru.textContent = w.text_ru;
         wt.appendChild(tt); wt.appendChild(ru);
         if (selectedThemes.size > 1 && w._theme) {
@@ -255,6 +277,20 @@
           genBtn.disabled = false; genBtn.textContent = '🎨 сгенерир.';
         };
         actions.appendChild(genBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑';
+        delBtn.title = 'Удалить слово навсегда (вместе с прогрессом детей по нему)';
+        delBtn.style.background = '#fef2f2';
+        delBtn.onclick = async () => {
+          if (!confirm(`Удалить слово «${w.text_tt} — ${w.text_ru}» НАВСЕГДА?\nПрогресс детей по нему тоже удалится.`)) return;
+          try {
+            await api(`/admin/word/${w.id}`, { method: 'DELETE' });
+            delete wordsByTheme[w.theme_id]; // перечитать тему с сервера
+            loadWords();
+          } catch (e) { alert(e.message); }
+        };
+        actions.appendChild(delBtn);
 
         const flagBtn = document.createElement('button');
         flagBtn.textContent = w.image_flag ? '🚩 помечена' : '🏳 пометить';
