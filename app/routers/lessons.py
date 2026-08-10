@@ -51,6 +51,9 @@ SORT_EXCLUDED_THEMES = {
 }
 
 SORT_INCOMPATIBLE = {
+    frozenset({"Животные: дома и во дворе", "Животные: в лесу и зоопарке"}),
+    frozenset({"Животные: дома и во дворе", "Птицы, рыбки, букашки"}),
+    frozenset({"Животные: в лесу и зоопарке", "Птицы, рыбки, букашки"}),
     frozenset({"Здоровье", "Профессии"}),
     frozenset({"Здоровье", "Моё тело"}),
     frozenset({"Игрушки", "Вещи в доме"}),
@@ -455,7 +458,13 @@ def ex_who_ran(pool: list[dict], animate: bool = True) -> Optional[dict]:
     # татарский вопрос вслух: «Кем юк?» о живом, «Нәрсә юк?» о предметах —
     # заодно ребёнок слышит конструкцию отсутствия (юк) и вопросительное слово
     from ..tts import cached_tts_url
-    ask_tt = "Кем юк?" if animate else "Нәрсә юк?"
+    yuk_audio = cached_tts_url(f"{missing['text_tt']} юк.")
+    if not yuk_audio:
+        return None  # без фразы отсутствия формат теряет главное — конструкцию «юк»
+    # одушевлённость определяем по самому пропавшему слову, а не по теме:
+    # в «Семья и наш дом» лежат и люди, и комнаты
+    animate_word = animate and missing["text_tt"].lower() not in INANIMATE_WORDS
+    ask_tt = "Кем юк?" if animate_word else "Нәрсә юк?"
     return {
         "type": "who_ran",
         "word_id": missing["id"],
@@ -465,7 +474,7 @@ def ex_who_ran(pool: list[dict], animate: bool = True) -> Optional[dict]:
         "ask_tt": ask_tt,
         "ask_audio": cached_tts_url(ask_tt),
         # ответ целиком: «Песи юк» — ребёнок слышит готовую фразу отсутствия
-        "yuk_audio": cached_tts_url(f"{missing['text_tt']} юк."),
+        "yuk_audio": yuk_audio,
     }
 
 
@@ -543,6 +552,13 @@ ODD_ONE_CATEGORY_THEMES = {
 ANIMATE_THEMES = {
     "Животные: дома и во дворе", "Животные: в лесу и зоопарке",
     "Птицы, рыбки, букашки", "Семья и наш дом", "Профессии", "Здоровье",
+}
+
+# слова-предметы внутри «одушевлённых» тем (в «Семья и наш дом» есть и комнаты)
+INANIMATE_WORDS = {
+    "өй", "фатир", "бүлмә", "ванна бүлмәсе", "аш бүлмәсе", "йокы бүлмәсе",
+    "кунак бүлмәсе", "балалар бүлмәсе", "ишек", "тәрәзә", "баскыч", "гаилә",
+    "оя", "койрык", "канат", "томшык", "тәпи", "җим", "җимлек",
 }
 
 EDIBLE_THEMES = {
@@ -640,7 +656,11 @@ def ex_alt_question(target: dict, pool: list[dict]) -> Optional[dict]:
     options = [_brief(target), _brief(partner)]
     random.shuffle(options)
     return {"type": "alt_question", "word_id": target["id"],
-            "text_tt": phrase, "audio_url": url, "options": options}
+            "text_tt": phrase, "audio_url": url, "options": options,
+            # без предмета-якоря вопрос «Чистамы, пычракмы?» не имеет решения:
+            # ребёнок должен видеть, ПРО ЧТО спрашивают
+            "source": {"id": target["id"], "image_url": target["image_url"],
+                       "emoji": target["emoji"]}}
 
 
 # Чем это делают: действие (3 л. ед. ч.) → инструмент. Послелог «белән» —
@@ -1070,7 +1090,8 @@ def ex_seasons(season_words: list[dict]) -> Optional[dict]:
         baskets.append({"id": idx, "title_ru": f"{season} — {w['text_ru']}",
                         "icon_emoji": SEASON_ICONS[season]})
         items.append({"word_id": w["id"], "text_tt": phrase, "audio_url": url,
-                      "image_url": None, "emoji": SEASON_ICONS[season], "basket": idx})
+                      # нейтральный значок: иконка сезона на плитке выдавала ответ
+                      "image_url": None, "emoji": "🔊", "basket": idx})
     random.shuffle(items)
     return {"type": "sort_baskets", "title": "🗓 Альбом времён года",
             "baskets": baskets, "items": items}
@@ -1294,6 +1315,12 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                 e = ex_repeat_after(w)
             else:
                 continue
+        elif phrase_mode:
+            # фразовая тема: её «пул» — абстракции без картинок, картиночные
+            # задания там неразрешимы (одно фото среди эмодзи-заглушек)
+            e = ex_pick_word_audio(w, pool + review_words)
+            if not e and w["audio_url"]:
+                e = ex_repeat_after(w)
         else:
             e = ex_pick_image(w, pool + review_words) or ex_yes_no(w, pool + review_words)
         if e:

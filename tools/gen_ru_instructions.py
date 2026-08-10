@@ -58,6 +58,7 @@ INSTRUCTIONS = {
     "vyberi_kakoy": "Выбери: какой?",
     "chem_delayut": "Чем это делают?",
     "odin_ili_mnogo": "Один или много?",
+    "oden_marata": "Одень Марата по погоде!",
     "povtori_za_diktorom": "Повтори за диктором",
     "molodec": "Молодец!",
     "molodec_otlichno": "Молодец! Отлично!",

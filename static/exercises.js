@@ -51,6 +51,7 @@
     'Выбери: какой?': 'vyberi_kakoy',
     'Чем это делают?': 'chem_delayut',
     'Один или много?': 'odin_ili_mnogo',
+    'Одень Марата по погоде!': 'oden_marata',
     'Посвети! Кто прячется в темноте?': 'posveti_fonarikom',
     'Повтори цепочку!': 'povtori_cepochku',
     'Послушай и найди картинку': 'najdi_kartinku',
@@ -1098,6 +1099,14 @@
     screen.innerHTML = '';
     // «Пәлтә калынмы, юкамы?» — две картинки-антонима, выбираем верный признак
     screen.appendChild(el('div', 'instr', '🤔 Выбери: какой?'));
+    if (item.source) {   // предмет, про который вопрос — иначе задача без референта
+      const anchor = el('div', 'big-visual');
+      anchor.style.cssText = 'min-height:110px;';
+      const av = el('div', ''); av.style.cssText = 'width:110px;height:110px;display:grid;place-items:center;';
+      av.appendChild(visual(item.source));
+      anchor.appendChild(av);
+      screen.appendChild(anchor);
+    }
     const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:10px;';
     const play = el('button', 'play-btn small', '🔊');
     play.onclick = () => playAudio(item.audio_url);
