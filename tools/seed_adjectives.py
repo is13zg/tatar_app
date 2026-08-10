@@ -29,16 +29,17 @@ ICON = "🔎"
 # и напоследок оценочные признаки (урок 4). Каждая пара антонимов целиком
 # внутри одного урока, иначе игра «Найди наоборот» не запускается.
 # text_tt, text_ru, emoji, sentence_tt, sentence_ru, en_prompt (для картинки)
+# sentence_tt = None означает «фраза правилась вручную, не перезаписывать»
 WORDS = [
-    # урок 1 — смотрим глазами (пара на одной машинке, пара на одной кукле)
-    ("чиста", "чистый", "🧼", "Машина чиста.", "Машинка чистая.",
-     "a red toy car, freshly washed and shiny, sparkling clean, water drops and soap bubbles around it"),
-    ("пычрак", "грязный", "🚗", "Машина пычрак.", "Машинка грязная.",
-     "the very same red toy car, now covered all over in brown mud splashes and dirt, dull and muddy"),
-    ("яңа", "новый", "✨", "Курчак яңа.", "Кукла новая.",
-     "a brand new doll with neat shiny hair and a bright clean dress, sparkles around her"),
-    ("иске", "старый", "🪆", "Курчак иске.", "Кукла старая.",
-     "the very same doll but old and shabby: messy faded hair, torn patched dress, worn out"),
+    # урок 1 — смотрим глазами (пара на одних руках, пара на одной машинке)
+    ("чиста", "чистый", "🧼", "Кул чиста.", "Руки чистые.",
+     "clean freshly washed child hands held up, soap foam and water drops, spotless skin"),
+    ("пычрак", "грязный", "🖐", "Кул пычрак.", "Руки грязные.",
+     "the very same child hands held up the same way, now covered all over in brown mud and dirt"),
+    ("яңа", "новый", "✨", "Машина яңа.", "Машинка новая.",
+     "a brand new shiny red toy car, sparkling clean, bright fresh paint, sparkles around it"),
+    ("иске", "старый", "🚗", None, None,
+     "the very same red toy car but old and shabby: faded scratched paint, dented, one wheel worn out"),
     # урок 2 — трогаем руками (пара на одном мяче, пара на одной рубашке)
     ("йомшак", "мягкий", "🧸", "Туп йомшак.", "Мяч мягкий.",
      "a soft plush blue ball being squeezed by a child hand, the ball dents deeply under the fingers"),
@@ -64,8 +65,8 @@ WORDS = [
      "a child calmly drinking from a cup of tea, cozy, no steam"),
     ("матур", "красивый", "🌸", "Кыз матур.", "Девочка красивая.",
      "a beautiful smiling girl with flowers in her hair"),
-    ("көчле", "сильный", "🐴", "Ат көчле.", "Лошадь сильная.",
-     "a strong horse pulling a heavy loaded cart, powerful muscles, straining forward"),
+    ("көчле", "сильный", "💪", "Аю көчле.", "Медведь сильный.",
+     "a strong bear flexing its muscular arms"),
     ("татлы", "сладкий", "🍬", "Алма татлы.", "Яблоко сладкое.",
      "a sweet ripe red apple, a happy child biting it, candy-sweet look"),
 ]
@@ -93,6 +94,10 @@ def main() -> None:
         ex = con.execute("select id from words where theme_id=? and lower(text_tt)=lower(?)",
                          (theme_id, tt)).fetchone()
         if ex:
+            if s_tt is None:  # фраза правилась вручную — оставляем как есть
+                con.execute("update words set text_ru=?, emoji=? where id=?", (ru, emoji, ex["id"]))
+                updated += 1
+                continue
             # если фраза поменялась — старая озвучка больше ей не соответствует
             con.execute("update words set text_ru=?, emoji=?, sentence_tt=?, sentence_ru=?, "
                         "sentence_audio_url = case when sentence_tt=? then sentence_audio_url else null end "
