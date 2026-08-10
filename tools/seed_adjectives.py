@@ -5,8 +5,13 @@
 курса. Пять пар — антонимы (см. OPPOSITES_TT в lessons.py), поэтому тема
 сразу работает с готовой игрой «Найди наоборот».
 
-Примеры построены только на уже пройденной лексике (китап, дәфтәр, уенчык,
-кул, аяк, карават, каләм, чәй, мендәр, аю, күлмәк, алма, кишер).
+Картинки в паре нарисованы на ОДНОМ И ТОМ ЖЕ предмете (та же машинка чистая и
+грязная, тот же мяч мягкий и твёрдый). Иначе ребёнок выучит не признак, а предмет:
+пока «толстый» был книгой, а «тонкий» — тетрадью, различались книга и тетрадь.
+
+Предметы взяты из тем, которые идут раньше по карте (игрушки, животные, цвета).
+Исключения — китап, чәй и алма: они появляются позже, но на картинке узнаются
+без слов и в заданиях не проверяются.
 
 Идемпотентно. Запуск: python tools/seed_adjectives.py [путь_к_БД]
 """
@@ -25,40 +30,42 @@ ICON = "🔎"
 # внутри одного урока, иначе игра «Найди наоборот» не запускается.
 # text_tt, text_ru, emoji, sentence_tt, sentence_ru, en_prompt (для картинки)
 WORDS = [
-    # урок 1 — смотрим глазами
-    ("чиста", "чистый", "🧼", "Кул чиста.", "Руки чистые.",
-     "clean freshly washed child hands with soap foam"),
-    ("пычрак", "грязный", "🦶", "Аяк пычрак.", "Ноги грязные.",
-     "child bare feet covered in brown mud"),
-    ("яңа", "новый", "✨", "Уенчык яңа.", "Игрушка новая.",
-     "a brand new shiny toy car, sparkling clean, bright colors"),
-    ("иске", "старый", "🧸", "Уенчык иске.", "Игрушка старая.",
-     "an old shabby worn toy car, faded paint, scratched, no people"),
-    # урок 2 — трогаем руками
-    ("йомшак", "мягкий", "🧸", "Мендәр йомшак.", "Подушка мягкая.",
-     "a very soft fluffy squishy pillow on a bed, cozy and puffy"),
-    ("каты", "твёрдый", "🥕", "Кишер каты.", "Морковь твёрдая.",
-     "a hard raw carrot, a child biting it with effort, crunchy"),
-    ("юеш", "мокрый", "💧", "Чәч юеш.", "Волосы мокрые.",
-     "wet hair strands with shiny water droplets dripping down, close up, no face"),
-    ("коры", "сухой", "🌾", "Күлмәк коры.", "Рубашка сухая.",
-     "a dry clean shirt hanging on a hanger, no water"),
-    # урок 3 — взвешиваем и сравниваем
-    ("авыр", "тяжёлый", "🎒", "Сумка авыр.", "Сумка тяжёлая.",
-     "a child struggling to lift a very heavy school bag with both hands, strain on face"),
-    ("җиңел", "лёгкий", "✏️", "Каләм җиңел.", "Ручка лёгкая.",
-     "a light thin pen balanced on one finger, floating feeling"),
+    # урок 1 — смотрим глазами (пара на одной машинке, пара на одной кукле)
+    ("чиста", "чистый", "🧼", "Машина чиста.", "Машинка чистая.",
+     "a red toy car, freshly washed and shiny, sparkling clean, water drops and soap bubbles around it"),
+    ("пычрак", "грязный", "🚗", "Машина пычрак.", "Машинка грязная.",
+     "the very same red toy car, now covered all over in brown mud splashes and dirt, dull and muddy"),
+    ("яңа", "новый", "✨", "Курчак яңа.", "Кукла новая.",
+     "a brand new doll with neat shiny hair and a bright clean dress, sparkles around her"),
+    ("иске", "старый", "🪆", "Курчак иске.", "Кукла старая.",
+     "the very same doll but old and shabby: messy faded hair, torn patched dress, worn out"),
+    # урок 2 — трогаем руками (пара на одном мяче, пара на одной рубашке)
+    ("йомшак", "мягкий", "🧸", "Туп йомшак.", "Мяч мягкий.",
+     "a soft plush blue ball being squeezed by a child hand, the ball dents deeply under the fingers"),
+    ("каты", "твёрдый", "⚽", "Туп каты.", "Мяч твёрдый.",
+     "the very same blue ball but hard, a child hand knocking on it, it stays perfectly round, "
+     "small impact lines"),
+    ("юеш", "мокрый", "💧", "Күлмәк юеш.", "Рубашка мокрая.",
+     "a shirt hanging on a hanger, soaking wet and dripping, water drops falling down from it"),
+    ("коры", "сухой", "👕", "Күлмәк коры.", "Рубашка сухая.",
+     "the very same shirt on the same hanger, completely dry, no water drops at all"),
+    # урок 3 — взвешиваем и сравниваем (пара на одном кубике, пара на одной книге)
+    ("авыр", "тяжёлый", "🧱", "Кубик авыр.", "Кубик тяжёлый.",
+     "a child straining with both hands to lift one big grey stone cube, bent under the weight, "
+     "sweat drops"),
+    ("җиңел", "лёгкий", "🎈", "Кубик җиңел.", "Кубик лёгкий.",
+     "the very same size cube but light as foam, a smiling child holding it up on one open palm"),
     ("калын", "толстый", "📗", "Китап калын.", "Книга толстая.",
-     "a very thick heavy closed book, seen from the side to show its thickness"),
-    ("юка", "тонкий", "📄", "Дәфтәр юка.", "Тетрадь тонкая.",
-     "a single very thin school notebook, seen from the side to show it is thin"),
+     "a very thick closed green book standing upright, seen from the side to show how thick it is"),
+    ("юка", "тонкий", "📗", "Китап юка.", "Книга тонкая.",
+     "the very same green book but very thin, standing upright, seen from the side to show how thin it is"),
     # урок 4 — оценка и качество
     ("җылы", "тёплый", "☕", "Чәй җылы.", "Чай тёплый.",
      "a child calmly drinking from a cup of tea, cozy, no steam"),
     ("матур", "красивый", "🌸", "Кыз матур.", "Девочка красивая.",
      "a beautiful smiling girl with flowers in her hair"),
-    ("көчле", "сильный", "💪", "Аю көчле.", "Медведь сильный.",
-     "a strong bear flexing its muscular arms"),
+    ("көчле", "сильный", "🐴", "Ат көчле.", "Лошадь сильная.",
+     "a strong horse pulling a heavy loaded cart, powerful muscles, straining forward"),
     ("татлы", "сладкий", "🍬", "Алма татлы.", "Яблоко сладкое.",
      "a sweet ripe red apple, a happy child biting it, candy-sweet look"),
 ]
@@ -86,8 +93,11 @@ def main() -> None:
         ex = con.execute("select id from words where theme_id=? and lower(text_tt)=lower(?)",
                          (theme_id, tt)).fetchone()
         if ex:
-            con.execute("update words set text_ru=?, emoji=?, sentence_tt=?, sentence_ru=? where id=?",
-                        (ru, emoji, s_tt, s_ru, ex["id"]))
+            # если фраза поменялась — старая озвучка больше ей не соответствует
+            con.execute("update words set text_ru=?, emoji=?, sentence_tt=?, sentence_ru=?, "
+                        "sentence_audio_url = case when sentence_tt=? then sentence_audio_url else null end "
+                        "where id=?",
+                        (ru, emoji, s_tt, s_ru, s_tt, ex["id"]))
             updated += 1
             continue
         con.execute(

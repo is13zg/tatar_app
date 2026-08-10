@@ -45,6 +45,9 @@ async def main() -> None:
     ap.add_argument("--db", default="app.db")
     ap.add_argument("--only", help="через запятую: только эти text_tt")
     ap.add_argument("--delay", type=float, default=3.0)
+    ap.add_argument("--no-fallback", action="store_true",
+                    help="не подменять Cloudflare Pollinations: тот рисует объёмный 3D "
+                         "вместо плоского стиля и молча перезаписывает хорошие картинки")
     args = ap.parse_args()
 
     # ключи Cloudflare: из окружения или из cf.env в корне (в git не хранится)
@@ -84,7 +87,7 @@ async def main() -> None:
             png = await generate_cf(prompt)
         except Exception as e:
             # у Cloudflare бывает исчерпание лимита — до Pollinations доходим без ключа
-            png = await _pollinations(prompt)
+            png = None if args.no_fallback else await _pollinations(prompt)
             if png is None:
                 fail += 1
                 print(f"ERR {tt}: {e}")

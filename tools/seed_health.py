@@ -21,16 +21,23 @@ ICON = "🩺"
 
 # text_tt, text_ru, emoji, sentence_tt, sentence_ru, en_prompt (для картинки)
 WORDS = [
+    # четыре первых слова легко срисовать одинаково («грустный ребёнок в шарфе»),
+    # поэтому у каждого свой опознавательный знак: зуб, горло, локоть, брызги
     ("авырта", "болит", "🤕", "Теш авырта.", "Зуб болит.",
-     "a sad little boy holding his cheek with both hands because his tooth hurts"),
+     "a crying boy with a swollen cheek and a white bandage tied around his head and jaw, "
+     "red pain rays around the cheek, one tooth marked with a red spot"),
     ("тамак", "горло", "😣", "Тамак авырта.", "Горло болит.",
-     "a small girl touching her sore throat, warm scarf around her neck"),
+     "big close up of a child wide open mouth from the front, the red throat clearly visible inside, "
+     "a doctor small flashlight pointing into it"),
     ("йөткерә", "кашляет", "😷", "Кыз йөткерә.", "Девочка кашляет.",
-     "a little girl coughing into her bent elbow, wrapped in a blanket"),
+     "a girl coughing hard into her bent elbow, mouth wide open, head down, "
+     "big puffs of air and motion lines bursting from her mouth"),
     ("төчкерә", "чихает", "🤧", "Бала төчкерә.", "Ребёнок чихает.",
-     "a small child sneezing into a paper tissue, tissue box nearby"),
+     "a child sneezing explosively, eyes squeezed shut, head thrown back, "
+     "a wide spray of tiny droplets flying out, a paper tissue in one hand"),
     ("дәвалый", "лечит", "👨‍⚕️", "Табиб дәвалый.", "Врач лечит.",
-     "a friendly doctor in a white coat listening to a smiling child with a stethoscope"),
+     "a doctor in a white coat with a head mirror pressing a stethoscope to the chest of "
+     "a child sitting on an examination couch, side view, only two people"),
     ("хастаханә", "больница", "🏥", "Хастаханә зур.", "Больница большая.",
      "a big friendly hospital building with a red cross, cartoon style"),
     ("дару", "лекарство", "💊", "Әни дару бирә.", "Мама даёт лекарство.",
@@ -38,7 +45,8 @@ WORDS = [
     ("даруханә", "аптека", "🏪", "Бу даруханә.", "Это аптека.",
      "a small pharmacy shop front with a green cross, cartoon style"),
     ("градусник", "градусник", "🌡", "Табиб градусник бирә.", "Врач даёт градусник.",
-     "a single medical thermometer, simple and clear"),
+     "one long thin straight stick thermometer standing upright, thin red line inside the glass tube, "
+     "silver tip at the bottom, nothing round"),
     ("сәламәт", "здоровый", "💪", "Мин сәламәт.", "Я здоровый.",
      "a happy healthy child jumping with joy, rosy cheeks, full of energy"),
 ]
@@ -65,8 +73,10 @@ def main() -> None:
         ex = con.execute("select id from words where theme_id=? and lower(text_tt)=lower(?)",
                          (theme_id, tt)).fetchone()
         if ex:
-            con.execute("update words set text_ru=?, emoji=?, sentence_tt=?, sentence_ru=? where id=?",
-                        (ru, emoji, s_tt, s_ru, ex["id"]))
+            con.execute("update words set text_ru=?, emoji=?, sentence_tt=?, sentence_ru=?, "
+                        "sentence_audio_url = case when sentence_tt=? then sentence_audio_url else null end "
+                        "where id=?",
+                        (ru, emoji, s_tt, s_ru, s_tt, ex["id"]))
             updated += 1
             continue
         con.execute(

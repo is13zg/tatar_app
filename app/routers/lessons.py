@@ -1393,19 +1393,27 @@ async def unit_progress_map(db: AsyncSession, user: User) -> dict[int, UnitProgr
     return {r.theme_id: r for r in rows}
 
 
-async def unlocked_theme_ids(db: AsyncSession, user: User) -> set[int]:
-    """Пройденные юниты + первый непройденный (защита от прыжков по прямым URL)."""
+async def frontier_index(db: AsyncSession, user: User) -> int:
+    """Докуда ребёнок дошёл: позиция самого дальнего пройденного юнита (с нуля — ещё нисколько).
+
+    Считаем именно по максимуму, а не по «все предыдущие пройдены»: иначе вставка
+    новой темы в начало пути захлопнула бы всё, что ребёнок уже открыл.
+    """
     units = await get_ordered_units(db)
     progress = await unit_progress_map(db, user)
-    unlocked: set[int] = set()
-    prev_done = True
-    for t in units:
+    reached = 0
+    for i, t in enumerate(units, start=1):
         p = progress.get(t.id)
-        completed = bool(p and p.completed_at)
-        if completed or prev_done:
-            unlocked.add(t.id)
-        prev_done = completed
-    return unlocked
+        if p and p.completed_at:
+            reached = i
+    return reached
+
+
+async def unlocked_theme_ids(db: AsyncSession, user: User) -> set[int]:
+    """Всё до самого дальнего пройденного юнита плюс следующий (защита от прыжков по URL)."""
+    units = await get_ordered_units(db)
+    reached = await frontier_index(db, user)
+    return {t.id for i, t in enumerate(units, start=1) if i <= reached + 1}
 
 
 async def compute_streak(db: AsyncSession, user: User) -> int:
@@ -1431,9 +1439,9 @@ async def learning_path(db: Annotated[AsyncSession, Depends(get_db)], user: Anno
     units = await get_ordered_units(db)
     progress = await unit_progress_map(db, user)
     counts = await word_counts_by_theme(db)
+    reached = await frontier_index(db, user)
     result = []
-    prev_done = True  # первый юнит открыт всегда
-    for t in units:
+    for i, t in enumerate(units, start=1):
         word_count = counts.get(t.id, 0)
         total = lessons_total_for(word_count)
         p = progress.get(t.id)
@@ -1442,7 +1450,7 @@ async def learning_path(db: Annotated[AsyncSession, Depends(get_db)], user: Anno
         completed = bool(p and p.completed_at)
         if completed:
             state = "done"
-        elif prev_done:
+        elif i <= reached + 1:
             state = "current"
         else:
             state = "locked"
@@ -1457,7 +1465,6 @@ async def learning_path(db: Annotated[AsyncSession, Depends(get_db)], user: Anno
             "stars": stars,
             "state": state,
         })
-        prev_done = completed
     streak = await compute_streak(db, user)
     stickers = (await db.execute(select(UserSticker).where(UserSticker.user_id == user.id))).scalars().all()
     return {"units": result, "streak": streak, "stickers": [s.sticker for s in stickers],
