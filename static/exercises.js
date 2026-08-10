@@ -248,6 +248,48 @@
         wrap.appendChild(row);
         wrap.appendChild(el('div', 'word-small', 'Слышишь слово — ищи наоборот!'));
         speakRuBrowser('Я называю слово, а ты ищи наоборот! Большой — а наоборот маленький.');
+      } else if (type === 'negation') {
+        wrap.appendChild(el('div', 'instr', '🚫 Игра «Әйе — Юк»'));
+        const row = el('div', ''); row.style.cssText = 'display:flex;gap:18px;align-items:center;';
+        const a = el('div', '', '🏊'); a.style.fontSize = '52px';
+        const eq = el('div', '', '→'); eq.style.fontSize = '34px';
+        const b = el('div', '', '👍 Әйе'); b.style.cssText = 'font-size:22px;font-weight:800;';
+        row.appendChild(a); row.appendChild(eq); row.appendChild(b);
+        wrap.appendChild(row);
+        const row2 = el('div', ''); row2.style.cssText = 'display:flex;gap:18px;align-items:center;';
+        const c = el('div', '', '🏃'); c.style.fontSize = '52px';
+        const eq2 = el('div', '', '→'); eq2.style.fontSize = '34px';
+        const d = el('div', '', '👎 Юк'); d.style.cssText = 'font-size:22px;font-weight:800;';
+        row2.appendChild(c); row2.appendChild(eq2); row2.appendChild(d);
+        wrap.appendChild(row2);
+        wrap.appendChild(el('div', 'word-small', 'Спросят про картинку — отвечай Әйе или Юк'));
+        speakRuBrowser('Я спрошу, что он делает. Если на картинке это — жми Әйе. Если другое — жми Юк.');
+      } else if (type === 'with_what') {
+        wrap.appendChild(el('div', 'instr', '🛠 Игра «Чем это делают»'));
+        const row = el('div', ''); row.style.cssText = 'display:flex;gap:16px;align-items:center;';
+        ['✍️', '→', '🖊'].forEach((e, i) => { const d = el('div', '', e); d.style.fontSize = i === 1 ? '32px' : '52px'; row.appendChild(d); });
+        wrap.appendChild(row);
+        wrap.appendChild(el('div', 'word-small', 'Слушай вопрос и выбирай нужный предмет'));
+        speakRuBrowser('Я спрошу, чем это делают. Выбери нужный предмет!');
+      } else if (type === 'alt_question') {
+        wrap.appendChild(el('div', 'instr', '🤔 Игра «Какой?»'));
+        const row = el('div', ''); row.style.cssText = 'display:flex;gap:20px;align-items:center;';
+        const big = el('div', '', '📗'); big.style.fontSize = '62px';
+        const or = el('div', '', 'или'); or.style.fontSize = '20px';
+        const small = el('div', '', '📄'); small.style.fontSize = '42px';
+        row.appendChild(big); row.appendChild(or); row.appendChild(small);
+        wrap.appendChild(row);
+        wrap.appendChild(el('div', 'word-small', 'Услышишь два слова — выбери подходящую картинку'));
+        speakRuBrowser('Я назову два слова. Выбери картинку, которая подходит!');
+      } else if (type === 'plural') {
+        wrap.appendChild(el('div', 'instr', '🔢 Игра «Один или много»'));
+        const row = el('div', ''); row.style.cssText = 'display:flex;gap:22px;align-items:center;';
+        const one = el('div', '', '🍎'); one.style.fontSize = '54px';
+        const many = el('div', '', '🍎🍎🍎'); many.style.fontSize = '34px';
+        row.appendChild(one); row.appendChild(many);
+        wrap.appendChild(row);
+        wrap.appendChild(el('div', 'word-small', 'Слушай два слова и выбери, что на картинке'));
+        speakRuBrowser('Послушай два слова. Одно про один предмет, другое про много. Выбери подходящее!');
       } else if (type === 'question') {
         wrap.appendChild(el('div', 'instr', '🗣 Игра «Әйе — Юк»'));
         const row = el('div', ''); row.style.cssText = 'display:flex;gap:24px;justify-content:center;';
@@ -1051,7 +1093,9 @@
     speakThenPlay('Ответь на вопрос!', item.audio_url);
   }
 
-  function rAltQuestion(item, screen, done) {
+  async function rAltQuestion(item, screen, done) {
+    if (!introSeen('alt_question')) await showExerciseIntro('alt_question', screen);
+    screen.innerHTML = '';
     // «Пәлтә калынмы, юкамы?» — две картинки-антонима, выбираем верный признак
     screen.appendChild(el('div', 'instr', '🤔 Выбери: какой?'));
     const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:10px;';
@@ -1128,7 +1172,9 @@
     speakRu('Одень Марата по погоде!');
   }
 
-  function rPlural(item, screen, done) {
+  async function rPlural(item, screen, done) {
+    if (!introSeen('plural')) await showExerciseIntro('plural', screen);
+    screen.innerHTML = '';
     // «Один или много?»: слушаем две формы и выбираем ту, что подходит картинке
     screen.appendChild(el('div', 'instr', '🔢 Один или много?'));
     const vis = el('div', 'big-visual');
@@ -1172,7 +1218,9 @@
     speakThenPlay('Один или много?', null);
   }
 
-  function rNegation(item, screen, done) {
+  async function rNegation(item, screen, done) {
+    if (!introSeen('negation')) await showExerciseIntro('negation', screen);
+    screen.innerHTML = '';
     // «Ул йөзәме?» — если на картинке другое действие, верный ответ «Юк, ул йөзми»
     screen.appendChild(el('div', 'instr', '🚫 Әйе или Юк?'));
     const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:8px;';
@@ -1188,10 +1236,10 @@
       if (locked) return; locked = true;
       const ok = saidYes === item.is_match;
       reportAnswer(item.word_id, ok, 'negation');
-      // ребёнок «проговаривает» свой ответ целиком: «Әйе, ул йөзә» / «Юк, ул йөзми»
-      await playAudio(saidYes ? item.yes_audio : item.no_audio);
       feedback(ok); await playFx(ok);
-      if (!ok) await playAudio(item.is_match ? item.yes_audio : item.no_audio); // верный вариант
+      // верную фразу проговариваем всегда, ошибочную — никогда:
+      // иначе ребёнок первым слышит неверный образец «Әйе, ул йөзә» под чужой картинкой
+      await playAudio(item.is_match ? item.yes_audio : item.no_audio);
       await sleep(400);
       done({ scored: true, ok });
     };
@@ -1203,7 +1251,9 @@
     speakThenPlay('Ответь на вопрос!', item.audio_url);
   }
 
-  function rWithWhat(item, screen, done) {
+  async function rWithWhat(item, screen, done) {
+    if (!introSeen('with_what')) await showExerciseIntro('with_what', screen);
+    screen.innerHTML = '';
     // «Нәрсә белән яза?» — выбери инструмент; ответ звучит целиком «Каләм белән»
     screen.appendChild(el('div', 'instr', '🛠 Чем это делают?'));
     const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:10px;';
@@ -1295,7 +1345,8 @@
       bx.appendChild(el('div', '', b.title_ru));
       bx.appendChild(el('div', 'caught', ''));
       bx.onclick = async () => {
-        if (!selected || lockedAll) return;
+        if (lockedAll) return;
+        if (!selected) { speakRuBrowser(b.title_ru); return; }  // тап по пустой корзине — озвучиваем её
         const it = selected; selected = null;
         it.node.classList.remove('selected');
         const ok = it.data.basket === b.id;

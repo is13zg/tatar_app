@@ -36,14 +36,29 @@ CATEGORY_TT = {"хайван", "кош", "бөҗәк", "ашамлык", "кие
 # выбор картинки для «как дела?» бессмыслен.
 PHRASE_THEMES = {"Привет и пока", "Давай знакомиться", "Вежливые слова",
                  "Чей? Кому? У кого?",   # падежные формы местоимений — абстракции без картинок
-                 "Кто? Что? Какой?"}     # вопросительные слова — то же самое
+                 "Кто? Что? Какой?",     # вопросительные слова — то же самое
+                 "Вежливые фразы"}       # ситуативные формулы: по картинке не различить
 
 # Дневной лимит НОВЫХ слов = 7 уроков по 4 слова (просьба владельца 2026-07-17;
 # было 10 — методист предупреждал, что очередь повторений растёт лавинообразно).
 NEW_WORDS_DAILY_LIMIT = 7 * NEW_WORDS_PER_LESSON  # 28
 
 # Пары тем с пересекающейся семантикой — сортировка по корзинам между ними неоднозначна.
+# темы, которые вообще нельзя сортировать по корзинам: их «предметы» — абстракции
+SORT_EXCLUDED_THEMES = {
+    "Нинди? Какой предмет", "Кто? Что? Какой?", "Чей? Кому? У кого?",
+    "Вежливые фразы", "Время и сезоны",
+}
+
 SORT_INCOMPATIBLE = {
+    frozenset({"Здоровье", "Профессии"}),
+    frozenset({"Здоровье", "Моё тело"}),
+    frozenset({"Игрушки", "Вещи в доме"}),
+    frozenset({"В городе", "В деревне"}),
+    frozenset({"В магазине", "Продукты и напитки"}),
+    frozenset({"В магазине", "Одежда и обувь"}),
+    frozenset({"В магазине", "Игрушки"}),
+    frozenset({"В магазине", "Вещи в доме"}),
     frozenset({"Овощи", "Продукты и напитки"}),
     frozenset({"Овощи", "Блюда и вкусы"}),
     frozenset({"Фрукты/ягоды", "Продукты и напитки"}),
@@ -68,6 +83,16 @@ SORT_INCOMPATIBLE = {
 
 # Минимальные пары, неразличимые для новичка на слух, — не ставить дистракторами друг к другу.
 CONFUSABLE_TT = {
+    # новые юниты: пары, различающиеся одной буквой или общим финалем
+    frozenset({"кайда?", "кая?"}),
+    frozenset({"ничә?", "ничек?"}),
+    frozenset({"дару", "даруханә"}),
+    frozenset({"хастаханә", "даруханә"}),
+    frozenset({"очучы", "очкыч"}),
+    frozenset({"тамак", "тавык"}),
+    frozenset({"кибет", "киштә"}),
+    frozenset({"сатучы", "сатып алучы"}),
+    frozenset({"йөткерә", "төчкерә"}),
     # падежные формы местоимений: мин/син-ряды различаются одной буквой на слух
     frozenset({"мине", "сине"}),
     frozenset({"миңа", "сиңа"}),
@@ -517,8 +542,7 @@ ODD_ONE_CATEGORY_THEMES = {
 # Темы про живое — там спрашиваем «Кем юк?» (кто), в остальных «Нәрсә юк?» (что)
 ANIMATE_THEMES = {
     "Животные: дома и во дворе", "Животные: в лесу и зоопарке",
-    "Птицы, рыбки, букашки", "Семья и наш дом", "Һөнәрләр / Профессии",
-    "Профессии",
+    "Птицы, рыбки, букашки", "Семья и наш дом", "Профессии", "Здоровье",
 }
 
 EDIBLE_THEMES = {
@@ -606,7 +630,10 @@ def ex_alt_question(target: dict, pool: list[dict]) -> Optional[dict]:
         return None
     if not _has_photo(target) or not _has_photo(partner):
         return None  # признак должен быть виден на картинке, эмодзи-заглушка не годится
-    phrase = f"{tt.capitalize()}{question_particle(tt)}, {partner_tt}{question_particle(partner_tt)}?"
+    # порядок в вопросе случаен: иначе верным всегда оказывается названный первым
+    first, second = (target, partner) if random.random() < 0.5 else (partner, target)
+    f_tt, s_tt = first["text_tt"].lower(), second["text_tt"].lower()
+    phrase = f"{f_tt.capitalize()}{question_particle(f_tt)}, {s_tt}{question_particle(s_tt)}?"
     url = cached_tts_url(phrase)
     if not url:
         return None
@@ -1516,13 +1543,14 @@ async def unit_lesson(theme_id: int, lesson_no: int,
             review = review[:2] + mistake_words
 
         sort_payload = None
-        if not phrase_mode:
+        if not phrase_mode and theme.title_ru not in SORT_EXCLUDED_THEMES:
             units = await get_ordered_units(db)
             prev_units = [
                 u for u in units
                 if u.order_index < theme.order_index
                 and u.title_ru not in PHRASE_THEMES
                 and frozenset({u.title_ru, theme.title_ru}) not in SORT_INCOMPATIBLE
+                and u.title_ru not in SORT_EXCLUDED_THEMES
             ]
             if prev_units and random.random() < 0.7:
                 other = random.choice(prev_units)
@@ -1533,6 +1561,8 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                 if not sort_payload:
                     sort_payload = ex_sort_baskets(theme, pool, other, other_words)
 
+        # бонусные форматы — только на словах уже пройденных юнитов
+        learned = await learned_theme_ids(db, theme.order_index)
         items = build_exercises(new_words, pool, review, sort_payload,
                                 phrase_mode=phrase_mode, allow_build=lesson_no >= 3,
                                 sentences_ok=lesson_no >= 2,
@@ -1540,12 +1570,12 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                                 feed_ok=theme.title_ru in EDIBLE_THEMES,
                                 qneg_ok=theme.title_ru in QNEG_THEMES,
                                 animate_theme=theme.title_ru in ANIMATE_THEMES,
-                                with_what_pool=await with_what_words(db),
-                                verb_pool=await verb_words(db),
-                                plural_pool=await plural_words(db),
+                                with_what_pool=await with_what_words(db, learned),
+                                verb_pool=await verb_words(db, learned),
+                                plural_pool=await plural_words(db, learned),
                                 sort_words=await sort_scenario_words(db),
-                                clothes_pool=await clothes_words(db),
-                                season_pool=await season_words(db))
+                                clothes_pool=await clothes_words(db, learned),
+                                season_pool=await season_words(db, learned))
 
     if len(items) < 3:
         # страховка: без озвучки/картинок упражнения могли не собраться — даём карточки
@@ -1567,17 +1597,17 @@ async def unit_lesson(theme_id: int, lesson_no: int,
 
 
 
-async def season_words(db: AsyncSession) -> list[dict]:
+async def season_words(db: AsyncSession, allowed: Optional[set] = None) -> list[dict]:
     """Слова-сезоны (яз, җәй, көз, кыш) — для альбома времён года."""
     rows = (await db.execute(select(Word).where(func.lower(Word.text_tt).in_(list(SEASON_SIGNS))))).scalars().all()
-    return [word_dto(w) for w in rows]
+    return [word_dto(w) for w in rows if allowed is None or w.theme_id in allowed]
 
 
-async def clothes_words(db: AsyncSession) -> list[dict]:
-    """Одежда с картинкой — для сюжета «одень по погоде»."""
+async def clothes_words(db: AsyncSession, allowed: Optional[set] = None) -> list[dict]:
+    """Одежда с картинкой — для сюжета «одень по погоде». Только если тема пройдена."""
     rows = (await db.execute(select(Word).join(Theme, Theme.id == Word.theme_id)
                              .where(Theme.title_ru == "Одежда и обувь"))).scalars().all()
-    return [word_dto(w) for w in rows]
+    return [word_dto(w) for w in rows if allowed is None or w.theme_id in allowed]
 
 
 async def sort_scenario_words(db: AsyncSession) -> dict[str, list[dict]]:
@@ -1591,7 +1621,7 @@ async def sort_scenario_words(db: AsyncSession) -> dict[str, list[dict]]:
     return out
 
 
-async def plural_words(db: AsyncSession) -> list[dict]:
+async def plural_words(db: AsyncSession, allowed: Optional[set] = None) -> list[dict]:
     """Слова, у которых есть выверенная форма мн. ч. И картинка «много предметов»."""
     import os
 
@@ -1602,23 +1632,36 @@ async def plural_words(db: AsyncSession) -> list[dict]:
     for w in rows:
         if not w.image_url or "noimg" in (w.image_url or ""):
             continue
+        if allowed is not None and w.theme_id not in allowed:
+            continue
         if os.path.isfile(os.path.join(STATIC_DIR, "image", "plural", f"word_{w.id}.png")):
             out.append(word_dto(w))
     return out
 
 
-async def verb_words(db: AsyncSession) -> list[dict]:
+async def learned_theme_ids(db: AsyncSession, up_to_order: Optional[int]) -> set:
+    """Темы, пройденные к этому месту пути. Бонусные форматы обязаны брать слова
+    только отсюда — иначе в первом же уроке всплывают слова из 20-го юнита."""
+    q = select(Theme.id)
+    if up_to_order is not None:
+        q = q.where(Theme.order_index < up_to_order)
+    return {r[0] for r in (await db.execute(q)).all()}
+
+
+async def verb_words(db: AsyncSession, allowed: Optional[set] = None) -> list[dict]:
     """Глаголы с выверенным отрицанием и картинкой — для тренажёра «Юк, ул йөзми»."""
     from ..forms import NEGATIVE_TT
     rows = (await db.execute(select(Word).where(func.lower(Word.text_tt).in_(list(NEGATIVE_TT))))).scalars().all()
-    return [word_dto(w) for w in rows if w.image_url and "noimg" not in (w.image_url or "")]
+    return [word_dto(w) for w in rows
+            if w.image_url and "noimg" not in (w.image_url or "")
+            and (allowed is None or w.theme_id in allowed)]
 
 
-async def with_what_words(db: AsyncSession) -> list[dict]:
+async def with_what_words(db: AsyncSession, allowed: Optional[set] = None) -> list[dict]:
     """Слова-инструменты для «Нәрсә белән?» — лежат в разных темах (пенал, кухня)."""
     names = list(WITH_WHAT.values())
     rows = (await db.execute(select(Word).where(func.lower(Word.text_tt).in_(names)))).scalars().all()
-    return [word_dto(w) for w in rows]
+    return [word_dto(w) for w in rows if allowed is None or w.theme_id in allowed]
 
 
 async def edible_theme_ids(db: AsyncSession) -> set:
@@ -1769,16 +1812,17 @@ async def daily_lesson(db: Annotated[AsyncSession, Depends(get_db)], user: Annot
     }
     fresh = [w for w in pool if w["id"] not in seen_ids][:3]
 
+    learned = await learned_theme_ids(db, current_unit.order_index)
     items = build_exercises(fresh, pool, review, phrase_mode=current_unit.title_ru in PHRASE_THEMES,
                             sentences_ok=True, feed_ok=current_unit.title_ru in EDIBLE_THEMES,
                             qneg_ok=current_unit.title_ru in QNEG_THEMES,
                             animate_theme=current_unit.title_ru in ANIMATE_THEMES,
-                            with_what_pool=await with_what_words(db),
-                            verb_pool=await verb_words(db),
-                            plural_pool=await plural_words(db),
+                            with_what_pool=await with_what_words(db, learned),
+                            verb_pool=await verb_words(db, learned),
+                            plural_pool=await plural_words(db, learned),
                             sort_words=await sort_scenario_words(db),
-                            clothes_pool=await clothes_words(db),
-                            season_pool=await season_words(db))
+                            clothes_pool=await clothes_words(db, learned),
+                            season_pool=await season_words(db, learned))
     if not items:
         raise HTTPException(status_code=400, detail="Не удалось собрать задание")
 
