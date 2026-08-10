@@ -35,7 +35,8 @@ CATEGORY_TT = {"хайван", "кош", "бөҗәк", "ашамлык", "кие
 # Темы-«фразники»: слова учим только через карточки, звучание и повторение за диктором —
 # выбор картинки для «как дела?» бессмыслен.
 PHRASE_THEMES = {"Привет и пока", "Давай знакомиться", "Вежливые слова",
-                 "Чей? Кому? У кого?"}  # падежные формы местоимений — абстракции без картинок
+                 "Чей? Кому? У кого?",   # падежные формы местоимений — абстракции без картинок
+                 "Кто? Что? Какой?"}     # вопросительные слова — то же самое
 
 # Дневной лимит НОВЫХ слов = 7 уроков по 4 слова (просьба владельца 2026-07-17;
 # было 10 — методист предупреждал, что очередь повторений растёт лавинообразно).
@@ -1243,12 +1244,33 @@ async def edible_theme_ids(db: AsyncSession) -> set:
     return {r[0] for r in rows}
 
 
+async def phrase_theme_ids(db: AsyncSession) -> set:
+    """id фразовых тем (фразы, местоимения, вопросительные слова) — у них нет
+    собственных картинок, картиночные задания там неразрешимы: все варианты
+    выглядят одинаково (эмодзи-заглушки)."""
+    rows = (await db.execute(select(Theme.id).where(Theme.title_ru.in_(PHRASE_THEMES)))).all()
+    return {r[0] for r in rows}
+
+
 def _practice_items(words: list[dict], pool: list[dict], limit: int = 10,
-                    feed_theme_ids: Optional[set] = None) -> list[dict]:
+                    feed_theme_ids: Optional[set] = None,
+                    phrase_ids: Optional[set] = None) -> list[dict]:
     """Практика без карточек — для тренировки/трудных слов."""
     random.shuffle(words)
     items: list[dict] = []
     for w in words[:limit]:
+        if phrase_ids and w.get("theme_id") in phrase_ids:
+            # фразовое слово: только на слух — выбор звучания и повтор за диктором
+            gens = [lambda: ex_pick_word_audio(w, pool)]
+            if w["audio_url"]:
+                gens.append(lambda: ex_repeat_after(w))
+            random.shuffle(gens)
+            for g in gens:
+                e = g()
+                if e:
+                    items.append(e)
+                    break
+            continue
         gens = [lambda: ex_pick_image(w, pool), lambda: ex_yes_no(w, pool),
                 lambda: ex_pick_word_audio(w, pool), lambda: ex_bubbles(w, pool),
                 lambda: ex_question(w, pool)]  # сработает только для слов с озвученным вопросом
@@ -1286,7 +1308,8 @@ async def review_mistakes(
     pool_words = (await db.execute(select(Word).where(Word.theme_id.in_(theme_ids)))).scalars().all()
     pool = [word_dto(w) for w in pool_words]
     return {"title": "Трудные слова", "icon": "💪",
-            "items": _practice_items(dtos, pool, limit=8, feed_theme_ids=await edible_theme_ids(db)),
+            "items": _practice_items(dtos, pool, limit=8, feed_theme_ids=await edible_theme_ids(db),
+                                     phrase_ids=await phrase_theme_ids(db)),
             "empty": False}
 
 
@@ -1315,7 +1338,8 @@ async def review_theme(
         items = _no_three_in_a_row(items)
     else:
         feed_ids = await edible_theme_ids(db) if theme.title_ru in EDIBLE_THEMES else None
-        items = _practice_items(list(pool), pool, limit=8, feed_theme_ids=feed_ids)
+        items = _practice_items(list(pool), pool, limit=8, feed_theme_ids=feed_ids,
+                                phrase_ids=await phrase_theme_ids(db))
     return {"title": theme.title_ru, "icon": theme.icon_emoji or "💪", "items": items, "empty": not items}
 
 
