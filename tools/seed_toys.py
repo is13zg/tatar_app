@@ -34,7 +34,8 @@ WORDS = [
      "a single cute rag doll with braids in a red dress, standing on a plain light background, children's book illustration, one object centered, no text"),
     ("машина", "машинка", "🚗", "Машина кызыл.", "Машинка красная.",
      "a single red toy car, wooden children's toy, on a plain light background, one object centered, no text"),
-    ("кубик", "кубик", "🧱", "Кубик сары.", "Кубик жёлтый.",
+    # «кубик» по-татарски — мера объёма (два кубика крови), игрушка это шакмак
+    ("шакмак", "кубик", "🧱", "Шакмак сары.", "Кубик жёлтый.",
      "a single yellow wooden building block cube on a plain light background, children's toy, one object centered, no text"),
     # урок 2 — то, что едет, плывёт и летит
     ("поезд", "поезд", "🚂", "Поезд озын.", "Поезд длинный.",
@@ -50,7 +51,8 @@ WORDS = [
      "a single colorful toy drum with two wooden drumsticks on a plain light background, one object centered, no text"),
     ("сыбызгы", "свисток, дудочка", "🎺", "Сыбызгы нәни.", "Свисток маленький.",
      "a single small wooden whistle pipe toy on a plain light background, children's book illustration, one object centered, no text"),
-    ("юла", "юла, волчок", "🌀", "Юла бии.", "Юла танцует.",
+    # «юла» — русское слово, в татарско-русском словаре его нет вовсе
+    ("бөтерчек", "юла, волчок", "🌀", "Бөтерчек әйләнә.", "Юла крутится.",
      "a single colorful spinning top toy spinning on a plain light background, motion blur at the tip, one object centered, no text"),
     ("шар", "воздушный шарик", "🎈", "Шар җиңел.", "Шарик лёгкий.",
      "a single red helium balloon with a string floating in the air, plain light background, one object centered, no text"),
@@ -76,7 +78,7 @@ def main() -> None:
         cur = con.execute(
             "insert into themes (title_ru, title_tt, icon_emoji, order_index, description) values (?,?,?,?,?)",
             (THEME_RU, THEME_TT, ICON, max_order + 1,
-             "Игрушки: туп, курчак, машина, кубик, поезд, барабан и другие"),
+             "Игрушки: туп, курчак, машина, шакмак, поезд, барабан и другие"),
         )
         theme_id = cur.lastrowid
         print(f"создана тема id={theme_id}, order={max_order + 1}")

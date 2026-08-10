@@ -50,11 +50,11 @@ WORDS = [
      "a shirt hanging on a hanger, soaking wet and dripping, water drops falling down from it"),
     ("коры", "сухой", "👕", "Күлмәк коры.", "Рубашка сухая.",
      "the very same shirt on the same hanger, completely dry, no water drops at all"),
-    # урок 3 — взвешиваем и сравниваем (пара на одном кубике, пара на одной книге)
-    ("авыр", "тяжёлый", "🧱", "Кубик авыр.", "Кубик тяжёлый.",
+    # урок 3 — взвешиваем и сравниваем (пара на одном шакмаке, пара на одной книге)
+    ("авыр", "тяжёлый", "🧱", "Шакмак авыр.", "Кубик тяжёлый.",
      "a child straining with both hands to lift one big grey stone cube, bent under the weight, "
      "sweat drops"),
-    ("җиңел", "лёгкий", "🎈", "Кубик җиңел.", "Кубик лёгкий.",
+    ("җиңел", "лёгкий", "🎈", "Шакмак җиңел.", "Кубик лёгкий.",
      "the very same size cube but light as foam, a smiling child holding it up on one open palm"),
     ("калын", "толстый", "📗", "Китап калын.", "Книга толстая.",
      "a very thick closed green book standing upright, seen from the side to show how thick it is"),
