@@ -1,13 +1,21 @@
 # -*- coding: utf-8 -*-
-"""Озвучка русских инструкций через Сбер SaluteSpeech (SmartSpeech).
+"""Озвучка русских инструкций.
 
-Ключи: env SALUTE_AUTH_KEYS — один или несколько авторизационных ключей через запятую
-(ключи ротируются по кругу, при 429/401 — переключение на следующий).
+ВАЖНО (2026-08): Сбер закрыл Freemium для физлиц с 15.07.2026 — старые ключи
+отдают 402 и не восстановятся. Новый движок по умолчанию — Яндекс SpeechKit
+(голос marina, амплуа friendly). Уже озвученные Сбером файлы не трогаем:
+скрипт пропускает всё, для чего файл уже существует.
+
+Ключ Яндекса: env YANDEX_API_KEY или строка YANDEX_API_KEY=... в yandex.env
+в корне проекта (в git не хранится).
+
+Нюанс амплуа: у marina есть neutral / whisper / friendly. Значения good и evil
+API принимает молча, но откатывает в нейтральный — «дружелюбно» это именно
+emotion=friendly (проверено сравнением байтов ответа).
 
 Использование:
-  SALUTE_AUTH_KEYS=key1,key2,key3 python tools/gen_ru_instructions.py --out static/voice/ru
-
-Файлы кладутся в <out>/<key>.wav — имена согласованы с INSTR_AUDIO в exercises.js.
+  python tools/gen_ru_instructions.py --out static/voice/ru
+  SALUTE_AUTH_KEYS=... python tools/gen_ru_instructions.py --engine sber   # legacy
 """
 import argparse
 import os
@@ -49,6 +57,7 @@ INSTRUCTIONS = {
     "otvet_na_vopros": "Ответь на вопрос!",
     "vyberi_kakoy": "Выбери: какой?",
     "chem_delayut": "Чем это делают?",
+    "odin_ili_mnogo": "Один или много?",
     "povtori_za_diktorom": "Повтори за диктором",
     "molodec": "Молодец!",
     "molodec_otlichno": "Молодец! Отлично!",
@@ -107,29 +116,84 @@ class SaluteTTS:
         raise RuntimeError(f"Все ключи не сработали: {last_err}")
 
 
+YANDEX_URL = "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize"
+YANDEX_VOICE = "marina"
+YANDEX_EMOTION = "friendly"   # у marina: neutral / whisper / friendly
+YANDEX_RATE = 48000   # 16 кГц срезает всё выше 8 кГц — голос звучит глухо, не как в демо
+
+
+def _yandex_key() -> str:
+    key = os.getenv("YANDEX_API_KEY")
+    if key:
+        return key
+    env = Path(__file__).resolve().parent.parent / "yandex.env"
+    if env.exists():
+        for line in env.read_text(encoding="utf-8").splitlines():
+            if line.startswith("YANDEX_API_KEY="):
+                return line.split("=", 1)[1].strip()
+    sys.exit("Нужен YANDEX_API_KEY (env или yandex.env в корне проекта)")
+
+
+def yandex_wav(text: str, key: str) -> bytes:
+    """LPCM от Яндекса + обрезка тишины по краям + WAV-заголовок."""
+    import io
+    import struct
+    import wave
+
+    r = httpx.post(YANDEX_URL, headers={"Authorization": f"Api-Key {key}"}, timeout=90,
+                   data={"text": text, "lang": "ru-RU", "voice": YANDEX_VOICE,
+                         "emotion": YANDEX_EMOTION, "speed": "1.0",
+                         "format": "lpcm", "sampleRateHertz": str(YANDEX_RATE)})
+    r.raise_for_status()
+    s = list(struct.unpack("<%dh" % (len(r.content) // 2), r.content))
+    thr = max(abs(x) for x in s) * 0.02
+    a = next(i for i, x in enumerate(s) if abs(x) > thr)
+    b = len(s) - next(i for i, x in enumerate(reversed(s)) if abs(x) > thr)
+    pad = int(YANDEX_RATE * 0.05)
+    s = s[max(0, a - pad):min(len(s), b + pad)]
+    buf = io.BytesIO()
+    w = wave.open(buf, "wb")
+    w.setnchannels(1)
+    w.setsampwidth(2)
+    w.setframerate(YANDEX_RATE)
+    w.writeframes(struct.pack("<%dh" % len(s), *s))
+    w.close()
+    return buf.getvalue()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="static/voice/ru")
+    ap.add_argument("--engine", choices=("yandex", "sber"), default="yandex")
     args = ap.parse_args()
-
-    raw = os.getenv("SALUTE_AUTH_KEYS") or os.getenv("SALUTE_AUTH_KEY") or ""
-    keys = [k.strip() for k in raw.split(",") if k.strip()]
-    if not keys:
-        sys.exit("Нужен env SALUTE_AUTH_KEYS (один или несколько ключей через запятую)")
-    print(f"Ключей: {len(keys)}, голос: {VOICE}")
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    tts = SaluteTTS(keys)
+
+    if args.engine == "sber":
+        raw = os.getenv("SALUTE_AUTH_KEYS") or os.getenv("SALUTE_AUTH_KEY") or ""
+        keys = [k.strip() for k in raw.split(",") if k.strip()]
+        if not keys:
+            sys.exit("Нужен env SALUTE_AUTH_KEYS (Freemium закрыт с 15.07.2026 — вероятно, вернёт 402)")
+        print(f"Сбер, ключей: {len(keys)}, голос: {VOICE}")
+        tts = SaluteTTS(keys)
+        synth = tts.synth
+    else:
+        key = _yandex_key()
+        print(f"Яндекс SpeechKit, голос: {YANDEX_VOICE}, амплуа: {YANDEX_EMOTION}")
+        synth = lambda text: yandex_wav(text, key)  # noqa: E731
+
+    made = skipped = 0
     for name, text in INSTRUCTIONS.items():
         target = out / f"{name}.wav"
         if target.exists():
-            print(f"skip {name} (есть)")
+            skipped += 1  # уже озвученное (в т.ч. старое сберовское) не переписываем
             continue
-        target.write_bytes(tts.synth(text))
+        target.write_bytes(synth(text))
+        made += 1
         print(f"ok   {name}: «{text}»")
         time.sleep(0.3)
-    print("Готово:", out)
+    print(f"Готово: {out} — новых {made}, пропущено {skipped}")
 
 
 if __name__ == "__main__":

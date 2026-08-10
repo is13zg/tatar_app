@@ -628,6 +628,40 @@ WITH_WHAT = {
 }
 
 
+def ex_plural(target: dict) -> Optional[dict]:
+    """«Один или много?»: показываем одну картинку или картинку с тремя предметами,
+    ребёнок выбирает из двух озвучек нужную форму (песи / песиләр).
+    Формы — из app/forms.py (после М/Н/Ң берут -нар/-нәр, автоматом не вывести).
+    Картинка «много» лежит отдельно: static/image/plural/word_{id}.png."""
+    import os
+
+    from ..config import STATIC_DIR
+    from ..forms import PLURAL_TT
+    from ..tts import cached_tts_url
+    tt = target["text_tt"].lower()
+    plural_tt = PLURAL_TT.get(tt)
+    if not plural_tt or not target["audio_url"] or not _has_photo(target):
+        return None
+    plural_img = os.path.join(STATIC_DIR, "image", "plural", f"word_{target['id']}.png")
+    if not os.path.isfile(plural_img):
+        return None
+    plural_audio = cached_tts_url(plural_tt)
+    if not plural_audio:
+        return None
+    many = random.random() < 0.5
+    return {
+        "type": "plural",
+        "word_id": target["id"],
+        "many": many,
+        "image_url": (f"/static/image/plural/word_{target['id']}.png" if many
+                      else target["image_url"]),
+        "options": [
+            {"key": "one", "text_tt": tt, "audio_url": target["audio_url"]},
+            {"key": "many", "text_tt": plural_tt, "audio_url": plural_audio},
+        ],
+    }
+
+
 def ex_negation(target: dict, pool: list[dict]) -> Optional[dict]:
     """«Ул йөзәме?» — на картинке другое действие, верный ответ «Юк, ул йөзми».
     Формы отрицания выверены носителем (app/forms.py), автоматически их
@@ -940,6 +974,133 @@ def ex_sort_baskets(theme_a: Theme, words_a: list[dict], theme_b: Theme, words_b
     }
 
 
+# Сводные сортировки: повторяют лексику сразу нескольких пройденных тем.
+# Ключ — название корзины, значение — темы, из которых берём предметы.
+SORT_SCENARIOS = [
+    {
+        "title": "🎒 Собери портфель",
+        "baskets": [
+            {"id": 1, "title_ru": "В портфель", "icon_emoji": "🎒",
+             "themes": ["Школа и урок", "Пенал и рюкзак"]},
+            {"id": 2, "title_ru": "Не нужно", "icon_emoji": "🚫",
+             "themes": ["Продукты и напитки", "Игрушки", "Фрукты/ягоды"]},
+        ],
+    },
+    {
+        "title": "🛒 Разложи по магазинам",
+        "baskets": [
+            {"id": 1, "title_ru": "Еда", "icon_emoji": "🥖",
+             "themes": ["Продукты и напитки", "Фрукты/ягоды", "Овощи"]},
+            {"id": 2, "title_ru": "Одежда", "icon_emoji": "👗", "themes": ["Одежда и обувь"]},
+            {"id": 3, "title_ru": "Игрушки", "icon_emoji": "🧸", "themes": ["Игрушки"]},
+        ],
+    },
+]
+
+
+# Одежда по погоде: сюжет «Марат собирается гулять» из книги «Мин татар».
+# Ребёнок одевает персонажа, после каждой вещи звучит «Марат нәрсә кия? — Марат X кия».
+DRESS_SCENES = [
+    {"key": "winter", "title_ru": "На улице зима — что наденем?", "emoji": "❄️",
+     "right": ["бүрек", "пальто", "итекләр", "бияләйләр", "шарф", "свитер", "куртка"],
+     "wrong": ["шорты", "футболка", "чүәкләр", "пижама"]},
+    {"key": "summer", "title_ru": "На улице лето — что наденем?", "emoji": "☀️",
+     "right": ["футболка", "шорты", "күлмәк", "итәк", "кроссовки", "туфли"],
+     "wrong": ["бүрек", "пальто", "бияләйләр", "шарф", "итекләр"]},
+]
+
+
+# Приметы сезонов — готовые озвученные фразы из книги «Мин татар».
+# Ребёнок слушает примету и кладёт её в нужное время года.
+SEASON_SIGNS = {
+    "яз": [("Кар эри.", "Снег тает."), ("Кошлар кайта.", "Птицы возвращаются."),
+           ("Тамчы тама.", "Капает капель.")],
+    "җәй": [("Балалар су коена.", "Дети купаются."), ("Чәчәкләр үсә.", "Растут цветы."),
+            ("Кояш кыздыра.", "Солнце печёт.")],
+    "көз": [("Яфрак коела.", "Падают листья."), ("Яңгыр ява.", "Идёт дождь."),
+            ("Урамда пычрак.", "На улице грязно.")],
+    "кыш": [("Кар ява.", "Идёт снег."), ("Балалар чанада шуа.", "Дети катаются на санках."),
+            ("Кар бабай ясыйлар.", "Лепят снеговика.")],
+}
+SEASON_ICONS = {"яз": "🌱", "җәй": "☀️", "көз": "🍂", "кыш": "❄️"}
+
+
+def ex_seasons(season_words: list[dict]) -> Optional[dict]:
+    """Альбом времён года: 4 корзины-сезона, в них раскладываются приметы.
+    Фразы озвучены заранее (tools/gen_season_tts.py), картинок не требуют —
+    ребёнок опирается на слух, поэтому берём максимум по одной примете на сезон."""
+    from ..tts import cached_tts_url
+    by_tt = {w["text_tt"].lower(): w for w in season_words}
+    baskets, items = [], []
+    for idx, (season, signs) in enumerate(SEASON_SIGNS.items(), 1):
+        w = by_tt.get(season)
+        if not w or not w["audio_url"]:
+            return None
+        phrase, ru = random.choice(signs)
+        url = cached_tts_url(phrase)
+        if not url:
+            return None
+        baskets.append({"id": idx, "title_ru": f"{season} — {w['text_ru']}",
+                        "icon_emoji": SEASON_ICONS[season]})
+        items.append({"word_id": w["id"], "text_tt": phrase, "audio_url": url,
+                      "image_url": None, "emoji": SEASON_ICONS[season], "basket": idx})
+    random.shuffle(items)
+    return {"type": "sort_baskets", "title": "🗓 Альбом времён года",
+            "baskets": baskets, "items": items}
+
+
+def ex_dress(scene: dict, clothes: list[dict]) -> Optional[dict]:
+    """«Одень Марата»: выбери подходящую по погоде одежду. Правильных несколько —
+    ребёнок набирает их одну за другой, каждая проговаривается фразой «Марат X кия»."""
+    from ..tts import cached_tts_url
+    by_tt = {w["text_tt"].lower(): w for w in clothes if w["audio_url"] and _has_photo(w)}
+    right = [by_tt[t] for t in scene["right"] if t in by_tt]
+    wrong = [by_tt[t] for t in scene["wrong"] if t in by_tt]
+    if len(right) < 2 or len(wrong) < 2:
+        return None
+    random.shuffle(right)
+    random.shuffle(wrong)
+    picked_right, picked_wrong = right[:3], wrong[:3]
+    options = []
+    for w in picked_right + picked_wrong:
+        options.append({
+            "id": w["id"], "image_url": w["image_url"], "emoji": w["emoji"],
+            "audio_url": w["audio_url"],
+            "right": w in picked_right,
+            # готовая фраза-ответ: «Марат чалбар кия»
+            "phrase_audio": cached_tts_url(f"Марат {w['text_tt']} кия."),
+        })
+    random.shuffle(options)
+    return {
+        "type": "dress",
+        "word_id": picked_right[0]["id"],
+        "scene": {"title_ru": scene["title_ru"], "emoji": scene["emoji"]},
+        "need": len(picked_right),
+        "options": options,
+    }
+
+
+def ex_sort_groups(scenario: dict, words_by_theme: dict[str, list[dict]]) -> Optional[dict]:
+    """Сводная сортировка по смысловым корзинам (не по темам, как sort_baskets):
+    «собери портфель», «разложи по магазинам». Повторяет сразу несколько тем."""
+    seen: set[str] = set()
+    baskets, items = [], []
+    per_basket = 2
+    for b in scenario["baskets"]:
+        pool = [w for t in b["themes"] for w in words_by_theme.get(t, [])
+                if w["audio_url"] and _has_photo(w)
+                and w["text_tt"].lower() not in CATEGORY_TT]
+        picked = _distinct_visual_pick(pool, per_basket, seen)
+        if not picked:
+            return None
+        baskets.append({"id": b["id"], "title_ru": b["title_ru"], "icon_emoji": b["icon_emoji"]})
+        items += [{"word_id": w["id"], "text_tt": w["text_tt"], "audio_url": w["audio_url"],
+                   "image_url": w["image_url"], "emoji": w["emoji"], "basket": b["id"]}
+                  for w in picked]
+    random.shuffle(items)
+    return {"type": "sort_baskets", "title": scenario["title"], "baskets": baskets, "items": items}
+
+
 def _no_three_in_a_row(items: list[dict]) -> list[dict]:
     """Разбавить последовательность: не больше двух одинаковых типов подряд."""
     result = list(items)
@@ -958,7 +1119,11 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                     late_unit: bool = False, feed_ok: bool = False,
                     qneg_ok: bool = False, animate_theme: bool = True,
                     with_what_pool: Optional[list[dict]] = None,
-                    verb_pool: Optional[list[dict]] = None) -> list[dict]:
+                    verb_pool: Optional[list[dict]] = None,
+                    plural_pool: Optional[list[dict]] = None,
+                    sort_words: Optional[dict] = None,
+                    clothes_pool: Optional[list[dict]] = None,
+                    season_pool: Optional[list[dict]] = None) -> list[dict]:
     """Урок: чередование «карточка → сразу практика» + разнообразное закрепление.
     phrase_mode: тема из фраз — только карточки, звучание и повторение за диктором.
     allow_build: «собери слово» — только с 3-го урока юнита (для начала это слишком сложно)."""
@@ -1059,6 +1224,16 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             extra_gens.append(lambda: ex_with_what(pool, with_what_pool))  # «Нәрсә белән яза?»
         if verb_pool:
             extra_gens.append(lambda: ex_negation(random.choice(verb_pool), verb_pool))  # «Юк, ул йөзми»
+        if plural_pool:
+            extra_gens.append(lambda: ex_plural(random.choice(plural_pool)))  # «Один или много?»
+        if sort_words and late_unit:
+            sc = random.choice(SORT_SCENARIOS)
+            extra_gens.append(lambda sc=sc: ex_sort_groups(sc, sort_words))  # портфель / магазины
+        if clothes_pool:
+            sc = random.choice(DRESS_SCENES)
+            extra_gens.append(lambda sc=sc: ex_dress(sc, clothes_pool))  # «одень Марата»
+        if season_pool and late_unit:
+            extra_gens.append(lambda: ex_seasons(season_pool))  # альбом времён года
         random.shuffle(extra_gens)
         # два бонусных игровых формата за урок (было один): больше интерактива по просьбе владельца
         added = 0
@@ -1366,7 +1541,11 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                                 qneg_ok=theme.title_ru in QNEG_THEMES,
                                 animate_theme=theme.title_ru in ANIMATE_THEMES,
                                 with_what_pool=await with_what_words(db),
-                                verb_pool=await verb_words(db))
+                                verb_pool=await verb_words(db),
+                                plural_pool=await plural_words(db),
+                                sort_words=await sort_scenario_words(db),
+                                clothes_pool=await clothes_words(db),
+                                season_pool=await season_words(db))
 
     if len(items) < 3:
         # страховка: без озвучки/картинок упражнения могли не собраться — даём карточки
@@ -1382,6 +1561,50 @@ async def unit_lesson(theme_id: int, lesson_no: int,
     }
 
 
+
+
+
+
+
+
+async def season_words(db: AsyncSession) -> list[dict]:
+    """Слова-сезоны (яз, җәй, көз, кыш) — для альбома времён года."""
+    rows = (await db.execute(select(Word).where(func.lower(Word.text_tt).in_(list(SEASON_SIGNS))))).scalars().all()
+    return [word_dto(w) for w in rows]
+
+
+async def clothes_words(db: AsyncSession) -> list[dict]:
+    """Одежда с картинкой — для сюжета «одень по погоде»."""
+    rows = (await db.execute(select(Word).join(Theme, Theme.id == Word.theme_id)
+                             .where(Theme.title_ru == "Одежда и обувь"))).scalars().all()
+    return [word_dto(w) for w in rows]
+
+
+async def sort_scenario_words(db: AsyncSession) -> dict[str, list[dict]]:
+    """Слова тех тем, что участвуют в сводных сортировках («портфель», «магазины»)."""
+    names = {t for sc in SORT_SCENARIOS for b in sc["baskets"] for t in b["themes"]}
+    rows = (await db.execute(select(Word, Theme.title_ru).join(Theme, Theme.id == Word.theme_id)
+                             .where(Theme.title_ru.in_(names)))).all()
+    out: dict[str, list[dict]] = {}
+    for w, title in rows:
+        out.setdefault(title, []).append(word_dto(w))
+    return out
+
+
+async def plural_words(db: AsyncSession) -> list[dict]:
+    """Слова, у которых есть выверенная форма мн. ч. И картинка «много предметов»."""
+    import os
+
+    from ..config import STATIC_DIR
+    from ..forms import PLURAL_TT
+    rows = (await db.execute(select(Word).where(func.lower(Word.text_tt).in_(list(PLURAL_TT))))).scalars().all()
+    out = []
+    for w in rows:
+        if not w.image_url or "noimg" in (w.image_url or ""):
+            continue
+        if os.path.isfile(os.path.join(STATIC_DIR, "image", "plural", f"word_{w.id}.png")):
+            out.append(word_dto(w))
+    return out
 
 
 async def verb_words(db: AsyncSession) -> list[dict]:
@@ -1551,7 +1774,11 @@ async def daily_lesson(db: Annotated[AsyncSession, Depends(get_db)], user: Annot
                             qneg_ok=current_unit.title_ru in QNEG_THEMES,
                             animate_theme=current_unit.title_ru in ANIMATE_THEMES,
                             with_what_pool=await with_what_words(db),
-                            verb_pool=await verb_words(db))
+                            verb_pool=await verb_words(db),
+                            plural_pool=await plural_words(db),
+                            sort_words=await sort_scenario_words(db),
+                            clothes_pool=await clothes_words(db),
+                            season_pool=await season_words(db))
     if not items:
         raise HTTPException(status_code=400, detail="Не удалось собрать задание")
 

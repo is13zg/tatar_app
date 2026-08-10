@@ -50,6 +50,7 @@
     'Ответь на вопрос!': 'otvet_na_vopros',
     'Выбери: какой?': 'vyberi_kakoy',
     'Чем это делают?': 'chem_delayut',
+    'Один или много?': 'odin_ili_mnogo',
     'Посвети! Кто прячется в темноте?': 'posveti_fonarikom',
     'Повтори цепочку!': 'povtori_cepochku',
     'Послушай и найди картинку': 'najdi_kartinku',
@@ -1084,6 +1085,93 @@
     speakThenPlay('Выбери: какой?', item.audio_url);
   }
 
+  function rDress(item, screen, done) {
+    // «Одень Марата»: набираем подходящую по погоде одежду; каждая вещь озвучивается фразой
+    screen.appendChild(el('div', 'instr', `${item.scene.emoji} ${item.scene.title_ru}`));
+    const hero = el('div', ''); hero.style.cssText = 'font-size:64px;text-align:center;line-height:1;';
+    hero.textContent = '🧒';
+    screen.appendChild(hero);
+    const worn = el('div', ''); worn.style.cssText = 'font-size:30px;text-align:center;min-height:38px;letter-spacing:4px;';
+    screen.appendChild(worn);
+    const grid = el('div', 'tile-grid'); grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    screen.appendChild(grid);
+    let got = 0, mistakes = 0, locked = false;
+    shuffled(item.options).forEach(opt => {
+      const t = el('button', 'tile');
+      t.appendChild(visual(opt));
+      t.onclick = async () => {
+        if (locked || t.dataset.used === '1') return;
+        if (opt.right) {
+          t.dataset.used = '1';
+          t.classList.add('good');
+          t.style.opacity = '.5';
+          worn.textContent += opt.emoji || '👕';
+          got++;
+          await playAudio(opt.audio_url);
+          if (opt.phrase_audio) await playAudio(opt.phrase_audio);  // «Марат чалбар кия»
+          if (got >= item.need) {
+            locked = true;
+            hero.textContent = '🧑‍🦱';
+            feedback(true, 'Афәрин! 🎉'); await playFx(true);
+            await sleep(500);
+            done({ scored: true, ok: mistakes === 0 });
+          }
+        } else {
+          mistakes++;
+          t.classList.add('bad');
+          feedback(false); await playFx(false);
+          setTimeout(() => t.classList.remove('bad'), 500);
+        }
+      };
+      grid.appendChild(t);
+    });
+    speakRu('Одень Марата по погоде!');
+  }
+
+  function rPlural(item, screen, done) {
+    // «Один или много?»: слушаем две формы и выбираем ту, что подходит картинке
+    screen.appendChild(el('div', 'instr', '🔢 Один или много?'));
+    const vis = el('div', 'big-visual');
+    const img = document.createElement('img');
+    img.src = item.image_url; img.alt = '';
+    vis.appendChild(img);
+    screen.appendChild(vis);
+    const row = el('div', ''); row.style.cssText = 'display:flex;gap:14px;justify-content:center;margin-top:12px;flex-wrap:wrap;';
+    screen.appendChild(row);
+    let locked = false, picked = null;
+    const check = el('button', 'kid-btn', '✔ Готово');
+    check.style.marginTop = '12px';
+    check.disabled = true;
+    shuffled(item.options).forEach(opt => {
+      const b = el('button', 'kid-btn secondary', '🔊');
+      b.style.cssText = 'min-width:120px;font-size:26px;';
+      b.onclick = () => {
+        if (locked) return;
+        playAudio(opt.audio_url);            // сначала слушаем, потом выбираем
+        picked = opt;
+        [...row.children].forEach(c => c.classList.remove('chosen'));
+        b.classList.add('chosen');
+        b.style.outline = '4px solid var(--accent)';
+        [...row.children].forEach(c => { if (c !== b) c.style.outline = 'none'; });
+        check.disabled = false;
+      };
+      row.appendChild(b);
+    });
+    check.onclick = async () => {
+      if (locked || !picked) return;
+      locked = true;
+      const ok = (picked.key === 'many') === item.many;
+      reportAnswer(item.word_id, ok, 'plural');
+      feedback(ok); await playFx(ok);
+      const right = item.options.find(o => (o.key === 'many') === item.many);
+      if (right) await playAudio(right.audio_url);   // подтверждаем верную форму
+      await sleep(400);
+      done({ scored: true, ok });
+    };
+    screen.appendChild(check);
+    speakThenPlay('Один или много?', null);
+  }
+
   function rNegation(item, screen, done) {
     // «Ул йөзәме?» — если на картинке другое действие, верный ответ «Юк, ул йөзми»
     screen.appendChild(el('div', 'instr', '🚫 Әйе или Юк?'));
@@ -1193,7 +1281,10 @@
   }
 
   function rSortBaskets(item, screen, done) {
-    screen.appendChild(el('div', 'instr', '🧺 Разложи по корзинкам: нажми картинку, потом корзинку'));
+    // у сводных сортировок («собери портфель», «по магазинам») свой заголовок
+    screen.appendChild(el('div', 'instr', item.title
+      ? `${item.title}: нажми картинку, потом корзинку`
+      : '🧺 Разложи по корзинкам: нажми картинку, потом корзинку'));
     const basketsRow = el('div', 'baskets'); screen.appendChild(basketsRow);
     const itemsRow = el('div', 'sort-items'); screen.appendChild(itemsRow);
     let selected = null, wrong = 0, placed = 0, lockedAll = false;
@@ -1440,6 +1531,8 @@
     alt_question: rAltQuestion,
     with_what: rWithWhat,
     negation: rNegation,
+    plural: rPlural,
+    dress: rDress,
     memory: rMemory,
     sort_baskets: rSortBaskets,
     pick_word_audio: rPickWordAudio,
