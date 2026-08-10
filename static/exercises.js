@@ -48,6 +48,8 @@
     'Что здесь лишнее?': 'chto_lishnee',
     'Найди наоборот!': 'najdi_naoborot',
     'Ответь на вопрос!': 'otvet_na_vopros',
+    'Выбери: какой?': 'vyberi_kakoy',
+    'Чем это делают?': 'chem_delayut',
     'Посвети! Кто прячется в темноте?': 'posveti_fonarikom',
     'Повтори цепочку!': 'povtori_cepochku',
     'Послушай и найди картинку': 'najdi_kartinku',
@@ -569,7 +571,12 @@
       });
       const instr = screen.querySelector('.instr');
       if (instr) instr.textContent = '🙀 Кто убежал? Найди!';
-      speakRu('Кто убежал? Найди!');
+      await speakRu('Кто убежал? Найди!');
+      // тот же вопрос по-татарски: «Кем юк?» / «Нәрсә юк?» — конструкция отсутствия
+      if (item.ask_audio) {
+        if (instr) instr.textContent = '🙀 ' + item.ask_tt;
+        await playAudio(item.ask_audio);
+      }
       const rowOpts = el('div', 'tile-grid'); rowOpts.style.gridTemplateColumns = 'repeat(2, 1fr)';
       screen.appendChild(rowOpts);
       let locked = false;
@@ -586,6 +593,7 @@
           const missing = item.shown.find(w => w.id === item.missing_id);
           feedback(ok); await playFx(ok);
           if (missing) await playAudio(missing.audio_url);
+          if (item.yuk_audio) await playAudio(item.yuk_audio);  // «X юк» — закрепляем отсутствие
           await sleep(300);
           done({ scored: true, ok });
         };
@@ -1042,6 +1050,105 @@
     speakThenPlay('Ответь на вопрос!', item.audio_url);
   }
 
+  function rAltQuestion(item, screen, done) {
+    // «Пәлтә калынмы, юкамы?» — две картинки-антонима, выбираем верный признак
+    screen.appendChild(el('div', 'instr', '🤔 Выбери: какой?'));
+    const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:10px;';
+    const play = el('button', 'play-btn small', '🔊');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    const tw = el('div', 'word-big', item.text_tt);
+    if ((item.text_tt || '').length > 14) tw.style.fontSize = '22px';
+    head.appendChild(tw);
+    screen.appendChild(head);
+    const grid = el('div', 'tile-grid'); screen.appendChild(grid);
+    let locked = false;
+    shuffled(item.options).forEach(opt => {
+      const t = el('button', 'tile');
+      t.appendChild(visual(opt));
+      t.onclick = async () => {
+        if (locked) return; locked = true;
+        const ok = opt.id === item.word_id;
+        reportAnswer(item.word_id, ok, 'alt_question');
+        t.classList.add(ok ? 'good' : 'bad');
+        if (!ok) [...grid.children].forEach(c => { if (c._id === item.word_id) c.classList.add('good'); });
+        feedback(ok); await playFx(ok);
+        const right = item.options.find(o => o.id === item.word_id);
+        if (right && right.audio_url) await playAudio(right.audio_url); // подтверждаем верный признак словом
+        await sleep(400);
+        done({ scored: true, ok });
+      };
+      t._id = opt.id;
+      grid.appendChild(t);
+    });
+    speakThenPlay('Выбери: какой?', item.audio_url);
+  }
+
+  function rNegation(item, screen, done) {
+    // «Ул йөзәме?» — если на картинке другое действие, верный ответ «Юк, ул йөзми»
+    screen.appendChild(el('div', 'instr', '🚫 Әйе или Юк?'));
+    const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:8px;';
+    const play = el('button', 'play-btn small', '🔊');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    head.appendChild(el('div', 'word-big', item.text_tt));
+    screen.appendChild(head);
+    const vis = el('div', 'big-visual'); vis.appendChild(visual(item.shown)); screen.appendChild(vis);
+    const row = el('div', 'yn-row');
+    let locked = false;
+    const answer = async (saidYes) => {
+      if (locked) return; locked = true;
+      const ok = saidYes === item.is_match;
+      reportAnswer(item.word_id, ok, 'negation');
+      // ребёнок «проговаривает» свой ответ целиком: «Әйе, ул йөзә» / «Юк, ул йөзми»
+      await playAudio(saidYes ? item.yes_audio : item.no_audio);
+      feedback(ok); await playFx(ok);
+      if (!ok) await playAudio(item.is_match ? item.yes_audio : item.no_audio); // верный вариант
+      await sleep(400);
+      done({ scored: true, ok });
+    };
+    const yes = el('button', 'kid-btn yn-yes', '👍 Әйе');
+    const no = el('button', 'kid-btn yn-no', '👎 Юк');
+    yes.onclick = () => answer(true);
+    no.onclick = () => answer(false);
+    row.appendChild(yes); row.appendChild(no); screen.appendChild(row);
+    speakThenPlay('Ответь на вопрос!', item.audio_url);
+  }
+
+  function rWithWhat(item, screen, done) {
+    // «Нәрсә белән яза?» — выбери инструмент; ответ звучит целиком «Каләм белән»
+    screen.appendChild(el('div', 'instr', '🛠 Чем это делают?'));
+    const head = el('div', ''); head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:10px;';
+    const play = el('button', 'play-btn small', '🔊');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    const tw = el('div', 'word-big', item.text_tt);
+    if ((item.text_tt || '').length > 16) tw.style.fontSize = '22px';
+    head.appendChild(tw);
+    screen.appendChild(head);
+    const grid = el('div', 'tile-grid'); grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    screen.appendChild(grid);
+    let locked = false;
+    shuffled(item.options).forEach(opt => {
+      const t = el('button', 'tile');
+      t.appendChild(visual(opt));
+      t.onclick = async () => {
+        if (locked) return; locked = true;
+        const ok = opt.id === item.word_id;
+        reportAnswer(item.word_id, ok, 'with_what');
+        t.classList.add(ok ? 'good' : 'bad');
+        if (!ok) [...grid.children].forEach(c => { if (c._id === item.word_id) c.classList.add('good'); });
+        feedback(ok); await playFx(ok);
+        if (item.answer_audio) await playAudio(item.answer_audio);
+        await sleep(350);
+        done({ scored: true, ok });
+      };
+      t._id = opt.id;
+      grid.appendChild(t);
+    });
+    speakThenPlay('Чем это делают?', item.audio_url);
+  }
+
   function rMemory(item, screen, done) {
     screen.appendChild(el('div', 'instr', '🃏 Найди пары: картинка и звук'));
     const grid = el('div', 'mem-grid'); screen.appendChild(grid);
@@ -1330,6 +1437,9 @@
     pick_image: rPickImage,
     yes_no: rYesNo,
     question: rQuestion,
+    alt_question: rAltQuestion,
+    with_what: rWithWhat,
+    negation: rNegation,
     memory: rMemory,
     sort_baskets: rSortBaskets,
     pick_word_audio: rPickWordAudio,

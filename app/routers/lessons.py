@@ -400,7 +400,7 @@ def ex_feed(target: dict, pool: list[dict]) -> Optional[dict]:
     }
 
 
-def ex_who_ran(pool: list[dict]) -> Optional[dict]:
+def ex_who_ran(pool: list[dict], animate: bool = True) -> Optional[dict]:
     """Кто убежал: 3 картинки показываются и озвучиваются, одна исчезает — вспомни какая."""
     cands = [w for w in pool if w["audio_url"] and w["text_tt"].lower() not in CATEGORY_TT]
     seen: set[str] = set()
@@ -427,12 +427,20 @@ def ex_who_ran(pool: list[dict]) -> Optional[dict]:
                        "audio_url": w["audio_url"], "text_tt": w["text_tt"]}
     options = [brief(missing), brief(random.choice(outsiders))]
     random.shuffle(options)
+    # татарский вопрос вслух: «Кем юк?» о живом, «Нәрсә юк?» о предметах —
+    # заодно ребёнок слышит конструкцию отсутствия (юк) и вопросительное слово
+    from ..tts import cached_tts_url
+    ask_tt = "Кем юк?" if animate else "Нәрсә юк?"
     return {
         "type": "who_ran",
         "word_id": missing["id"],
         "shown": [brief(w) for w in trio],
         "missing_id": missing["id"],
         "options": options,
+        "ask_tt": ask_tt,
+        "ask_audio": cached_tts_url(ask_tt),
+        # ответ целиком: «Песи юк» — ребёнок слышит готовую фразу отсутствия
+        "yuk_audio": cached_tts_url(f"{missing['text_tt']} юк."),
     }
 
 
@@ -506,6 +514,13 @@ ODD_ONE_CATEGORY_THEMES = {
 
 # «Покорми Акбая» осмысленно только на съедобном: щенка кормят едой, а не овцой/коровой.
 # На остальных темах закрепление даёт обычный «найди картинку».
+# Темы про живое — там спрашиваем «Кем юк?» (кто), в остальных «Нәрсә юк?» (что)
+ANIMATE_THEMES = {
+    "Животные: дома и во дворе", "Животные: в лесу и зоопарке",
+    "Птицы, рыбки, букашки", "Семья и наш дом", "Һөнәрләр / Профессии",
+    "Профессии",
+}
+
 EDIBLE_THEMES = {
     "Продукты и напитки",
     "Фрукты/ягоды",
@@ -573,6 +588,117 @@ def ex_odd_one(pool: list[dict], other_words: list[dict]) -> Optional[dict]:
     options = [_brief(w) for w in trio] + [_brief(odd)]
     random.shuffle(options)
     return {"type": "odd_one", "word_id": odd["id"], "options": options}
+
+
+def ex_alt_question(target: dict, pool: list[dict]) -> Optional[dict]:
+    """Альтернативный вопрос «Пәлтә калынмы, юкамы?» — выбор из двух признаков.
+    Работает на парах OPPOSITES_TT: звучит вопрос с обоими вариантами,
+    ребёнок жмёт картинку того признака, который верен. Фраза берётся
+    только из кэша TTS (предозвучка — tools/gen_alt_tts.py)."""
+    from ..qneg import question_particle
+    from ..tts import cached_tts_url
+    tt = target["text_tt"].lower()
+    partner_tt = OPPOSITES_TT.get(tt)
+    if not partner_tt or not target["audio_url"]:
+        return None
+    partner = next((p for p in pool if p["text_tt"].lower() == partner_tt), None)
+    if not partner or not partner["audio_url"]:
+        return None
+    if not _has_photo(target) or not _has_photo(partner):
+        return None  # признак должен быть виден на картинке, эмодзи-заглушка не годится
+    phrase = f"{tt.capitalize()}{question_particle(tt)}, {partner_tt}{question_particle(partner_tt)}?"
+    url = cached_tts_url(phrase)
+    if not url:
+        return None
+    options = [_brief(target), _brief(partner)]
+    random.shuffle(options)
+    return {"type": "alt_question", "word_id": target["id"],
+            "text_tt": phrase, "audio_url": url, "options": options}
+
+
+# Чем это делают: действие (3 л. ед. ч.) → инструмент. Послелог «белән» —
+# один из самых частотных в детской речи, а задание сводится к выбору картинки.
+WITH_WHAT = {
+    "яза": "каләм",            # пишет ручкой
+    "рәсем ясый": "карандаш",  # рисует карандашом
+    "ашый": "кашык",           # ест ложкой
+    "кисә": "кайчы",           # режет ножницами
+    "ябыштыра": "җилем",       # клеит клеем
+    "чистарта": "бетергеч",    # стирает ластиком
+}
+
+
+def ex_negation(target: dict, pool: list[dict]) -> Optional[dict]:
+    """«Ул йөзәме?» — на картинке другое действие, верный ответ «Юк, ул йөзми».
+    Формы отрицания выверены носителем (app/forms.py), автоматически их
+    строить нельзя: основа глагола в 3 л. часто искажена (чыга → чык-)."""
+    from ..forms import NEGATIVE_TT
+    from ..qneg import question_particle
+    from ..tts import cached_tts_url
+    verb = target["text_tt"].lower()
+    neg = NEGATIVE_TT.get(verb)
+    if not neg or not target["audio_url"] or not _has_photo(target):
+        return None
+    question = f"Ул {verb}{question_particle(verb)}?"
+    q_url = cached_tts_url(question)
+    yes_url = cached_tts_url(f"Әйе, ул {verb}.")
+    no_url = cached_tts_url(f"Юк, ул {neg}.")
+    if not q_url or not yes_url or not no_url:
+        return None
+    # половина заданий — про эту же картинку (Әйе), половина — про чужое действие (Юк)
+    is_match = random.random() < 0.5
+    shown = target
+    if not is_match:
+        others = [p for p in pool
+                  if p["id"] != target["id"] and _has_photo(p)
+                  and p["text_tt"].lower() in NEGATIVE_TT
+                  and not confusable(p["text_tt"], target["text_tt"])]
+        if not others:
+            is_match = True
+        else:
+            shown = random.choice(others)
+    return {
+        "type": "negation",
+        "word_id": target["id"],
+        "text_tt": question,
+        "audio_url": q_url,
+        "is_match": is_match,
+        "shown": {"id": shown["id"], "image_url": shown["image_url"], "emoji": shown["emoji"]},
+        "yes_tt": f"Әйе, ул {verb}.", "yes_audio": yes_url,
+        "no_tt": f"Юк, ул {neg}.", "no_audio": no_url,
+    }
+
+
+def ex_with_what(pool: list[dict], all_words: list[dict]) -> Optional[dict]:
+    """«Нәрсә белән яза?» — выбери инструмент. Вопрос берётся из кэша TTS
+    (предозвучка — tools/gen_withwhat_tts.py), ответ звучит как «Каләм белән»."""
+    from ..tts import cached_tts_url
+    by_tt = {w["text_tt"].lower(): w for w in all_words}
+    pairs = [(verb, tool) for verb, tool in WITH_WHAT.items()
+             if tool in by_tt and _has_photo(by_tt[tool])]
+    random.shuffle(pairs)
+    for verb, tool_tt in pairs:
+        question = f"Нәрсә белән {verb}?"
+        q_url = cached_tts_url(question)
+        answer_url = cached_tts_url(f"{tool_tt.capitalize()} белән.")
+        if not q_url or not answer_url:
+            continue
+        target = by_tt[tool_tt]
+        others = [by_tt[t] for v, t in WITH_WHAT.items()
+                  if t != tool_tt and t in by_tt and _has_photo(by_tt[t])]
+        if len(others) < 2:
+            continue
+        options = random.sample(others, 2) + [target]
+        random.shuffle(options)
+        return {
+            "type": "with_what",
+            "word_id": target["id"],
+            "text_tt": question,
+            "audio_url": q_url,
+            "answer_audio": answer_url,
+            "options": [{"id": o["id"], "image_url": o["image_url"], "emoji": o["emoji"]} for o in options],
+        }
+    return None
 
 
 # ---- третья волна мини-игр (остаток отчёта геймдизайнера) ----
@@ -830,7 +956,9 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                     sort_payload: Optional[dict] = None, phrase_mode: bool = False,
                     allow_build: bool = False, sentences_ok: bool = False,
                     late_unit: bool = False, feed_ok: bool = False,
-                    qneg_ok: bool = False) -> list[dict]:
+                    qneg_ok: bool = False, animate_theme: bool = True,
+                    with_what_pool: Optional[list[dict]] = None,
+                    verb_pool: Optional[list[dict]] = None) -> list[dict]:
     """Урок: чередование «карточка → сразу практика» + разнообразное закрепление.
     phrase_mode: тема из фраз — только карточки, звучание и повторение за диктором.
     allow_build: «собери слово» — только с 3-го урока юнита (для начала это слишком сложно)."""
@@ -917,15 +1045,20 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
         for w in new_words:
             if w["text_tt"].lower() in OPPOSITES_TT:
                 extra_gens.append(lambda w=w: ex_opposite(w, pool, known_pool))
+                extra_gens.append(lambda w=w: ex_alt_question(w, known_pool))  # «калынмы, юкамы?»
                 break
         if sentences_ok:
             extra_gens.append(lambda: ex_windows(pool))
         if allow_build:
-            extra_gens.append(lambda: ex_who_ran(pool))
+            extra_gens.append(lambda: ex_who_ran(pool, animate=animate_theme))
             extra_gens.append(lambda: ex_flashlight(random.choice(new_words), pool))
         if late_unit:
             extra_gens.append(lambda: ex_chain(pool))
             extra_gens.append(lambda: ex_moles(random.choice(new_words), pool))  # «норки» не только в боссе
+        if with_what_pool:
+            extra_gens.append(lambda: ex_with_what(pool, with_what_pool))  # «Нәрсә белән яза?»
+        if verb_pool:
+            extra_gens.append(lambda: ex_negation(random.choice(verb_pool), verb_pool))  # «Юк, ул йөзми»
         random.shuffle(extra_gens)
         # два бонусных игровых формата за урок (было один): больше интерактива по просьбе владельца
         added = 0
@@ -1230,7 +1363,10 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                                 sentences_ok=lesson_no >= 2,
                                 late_unit=(theme.order_index or 0) >= 14,
                                 feed_ok=theme.title_ru in EDIBLE_THEMES,
-                                qneg_ok=theme.title_ru in QNEG_THEMES)
+                                qneg_ok=theme.title_ru in QNEG_THEMES,
+                                animate_theme=theme.title_ru in ANIMATE_THEMES,
+                                with_what_pool=await with_what_words(db),
+                                verb_pool=await verb_words(db))
 
     if len(items) < 3:
         # страховка: без озвучки/картинок упражнения могли не собраться — даём карточки
@@ -1244,6 +1380,22 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         "is_boss": is_boss,
         "items": items,
     }
+
+
+
+
+async def verb_words(db: AsyncSession) -> list[dict]:
+    """Глаголы с выверенным отрицанием и картинкой — для тренажёра «Юк, ул йөзми»."""
+    from ..forms import NEGATIVE_TT
+    rows = (await db.execute(select(Word).where(func.lower(Word.text_tt).in_(list(NEGATIVE_TT))))).scalars().all()
+    return [word_dto(w) for w in rows if w.image_url and "noimg" not in (w.image_url or "")]
+
+
+async def with_what_words(db: AsyncSession) -> list[dict]:
+    """Слова-инструменты для «Нәрсә белән?» — лежат в разных темах (пенал, кухня)."""
+    names = list(WITH_WHAT.values())
+    rows = (await db.execute(select(Word).where(func.lower(Word.text_tt).in_(names)))).scalars().all()
+    return [word_dto(w) for w in rows]
 
 
 async def edible_theme_ids(db: AsyncSession) -> set:
@@ -1396,7 +1548,10 @@ async def daily_lesson(db: Annotated[AsyncSession, Depends(get_db)], user: Annot
 
     items = build_exercises(fresh, pool, review, phrase_mode=current_unit.title_ru in PHRASE_THEMES,
                             sentences_ok=True, feed_ok=current_unit.title_ru in EDIBLE_THEMES,
-                            qneg_ok=current_unit.title_ru in QNEG_THEMES)
+                            qneg_ok=current_unit.title_ru in QNEG_THEMES,
+                            animate_theme=current_unit.title_ru in ANIMATE_THEMES,
+                            with_what_pool=await with_what_words(db),
+                            verb_pool=await verb_words(db))
     if not items:
         raise HTTPException(status_code=400, detail="Не удалось собрать задание")
 

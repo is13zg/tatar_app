@@ -17,6 +17,21 @@ import time
 sys.path.insert(0, os.getcwd())
 
 
+async def _pollinations(prompt: str):
+    """Запасной генератор: flux без ключа. None — если тоже не вышло."""
+    import urllib.parse
+
+    import httpx
+    url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=768&height=768&nologo=true"
+    try:
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as c:
+            r = await c.get(url)
+            r.raise_for_status()
+            return r.content if r.content[:4] in (b"\x89PNG", b"\xff\xd8\xff\xe0") or len(r.content) > 5000 else None
+    except Exception:
+        return None
+
+
 def load_seed(path: str):
     spec = importlib.util.spec_from_file_location("_seed_mod", path)
     mod = importlib.util.module_from_spec(spec)
@@ -68,10 +83,14 @@ async def main() -> None:
         try:
             png = await generate_cf(prompt)
         except Exception as e:
-            fail += 1
-            print(f"ERR {tt}: {e}")
-            await asyncio.sleep(args.delay * 3)
-            continue
+            # у Cloudflare бывает исчерпание лимита — до Pollinations доходим без ключа
+            png = await _pollinations(prompt)
+            if png is None:
+                fail += 1
+                print(f"ERR {tt}: {e}")
+                await asyncio.sleep(args.delay * 3)
+                continue
+            print(f"  (CF недоступен, взял Pollinations)")
         png = optimize_image(png) or png
         with open(os.path.join(target_dir, f"word_{w[0]}.png"), "wb") as f:
             f.write(png)
