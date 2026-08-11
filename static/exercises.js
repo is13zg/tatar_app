@@ -56,6 +56,16 @@
     'Сейчас или уже?': 'seychas_ili_uzhe',
     'Сколько предметов?': 'skolko_predmetov',
     'Почему? Выбери, какой он': 'pochemu_kakoy',
+    'Он не поел.': 'prichina_ne_poel',
+    'Он не пил воду.': 'prichina_ne_pil',
+    'Он не спал.': 'prichina_ne_spal',
+    'Там большая собака.': 'prichina_sobaka',
+    'Делает сейчас': 'delaet_seychas',
+    'Уже сделал': 'uzhe_sdelal',
+    'Кошка на всех картинках одинаковая. Слушай, где она.': 'demo_where',
+    'Слушай слово. Если делает сейчас — нажми песочные часы. Если уже сделал — флажок.': 'demo_past',
+    'Посчитай предметы. Слушай кнопки и выбери, где названо столько же.': 'demo_count',
+    'Я расскажу, что случилось. А ты выбери, какой он.': 'demo_why',
     'Посвети! Кто прячется в темноте?': 'posveti_fonarikom',
     'Повтори цепочку!': 'povtori_cepochku',
     'Послушай и найди картинку': 'najdi_kartinku',
@@ -268,7 +278,8 @@
         });
         wrap.appendChild(row);
         wrap.appendChild(el('div', 'word-small', 'Кошка везде одна — слушай, ГДЕ она!'));
-        speakRuBrowser('Кошка на всех картинках одинаковая. Слушай внимательно, где она: сверху, снизу, рядом, за кроватью или перед ней.');
+        setTimeout(() => sizeScenes(wrap), 0);
+        speakRu('Кошка на всех картинках одинаковая. Слушай, где она.');
       } else if (type === 'past') {
         wrap.appendChild(el('div', 'instr', 'Игра «Сейчас или уже?»'));
         const row = el('div', '');
@@ -281,7 +292,7 @@
         const t2 = el('div', 'word-small', 'ашады — уже поел');
         [a, t1, b, t2].forEach(x => row.appendChild(x));
         wrap.appendChild(row);
-        speakRuBrowser('Слушай слово. Если он делает сейчас — нажми на стрелочку. Если уже сделал — на галочку.');
+        speakRu('Слушай слово. Если делает сейчас — нажми песочные часы. Если уже сделал — флажок.');
       } else if (type === 'count') {
         wrap.appendChild(el('div', 'instr', 'Игра «Сколько предметов?»'));
         const row = el('div', '');
@@ -293,7 +304,7 @@
         }
         wrap.appendChild(row);
         wrap.appendChild(el('div', 'word-small', '\u00F6\u0447 \u0430\u043B\u043C\u0430 \u2014 \u0442\u0440\u0438 \u044F\u0431\u043B\u043E\u043A\u0430'));
-        speakRuBrowser('Посчитай предметы. Потом слушай кнопки и выбери ту, где названо столько же.');
+        speakRu('Посчитай предметы. Слушай кнопки и выбери, где названо столько же.');
       } else if (type === 'why') {
         wrap.appendChild(el('div', 'instr', 'Игра «Почему?»'));
         const row = el('div', '');
@@ -1309,22 +1320,47 @@
     // Опора рисуется ДВАЖДЫ: нижний слой целиком, верхний обрезан по низу.
     // Кошка лежит между ними, поэтому в позиции «артында» её реально закрывает
     // кровать, а не имитирует бледность (эмодзи-глиф сам ничего не перекрывает).
-    const box = el('div', '');
+    const box = el('div', 'place-scene');
     box.style.cssText = 'position:relative;width:100%;aspect-ratio:1;';
-    const anchorCss = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
-      'font-size:52%;line-height:1;';
-    const back = el('div', '', item.anchor);
+    const anchorCss = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);line-height:1;';
+    const back = el('div', 'anc', item.anchor);
     back.style.cssText = anchorCss + 'z-index:0;';
     box.appendChild(back);
-    const subj = el('div', '', item.subject);
-    subj.style.cssText = 'position:absolute;font-size:24%;line-height:1;' +
-      (PLACE_CSS[pos] || PLACE_CSS.near);
+    const subj = el('div', 'sub', item.subject);
+    subj.style.cssText = 'position:absolute;line-height:1;' + (PLACE_CSS[pos] || PLACE_CSS.near);
     box.appendChild(subj);
-    const front = el('div', '', item.anchor);
+    const front = el('div', 'anc', item.anchor);
     front.style.cssText = anchorCss + 'z-index:2;clip-path:inset(42% 0 0 0);';
     box.appendChild(front);
+    box._parts = { anchors: [back, front], subj: subj };
     return box;
   }
+
+  // Размеры задаём в пикселях от фактической ширины плитки: проценты в
+  // font-size считаются от шрифта родителя, а не от блока, и кошка выходила
+  // четырёхпиксельной. Пересчитываем после вставки в документ и на поворот.
+  function sizeScenes(root) {
+    const scenes = [...root.querySelectorAll('.place-scene')];
+    const apply = () => scenes.forEach(box => {
+      const w = box.getBoundingClientRect().width;
+      if (!w || !box._parts) return;
+      box._parts.anchors.forEach(a => { a.style.fontSize = Math.round(w * 0.66) + 'px'; });
+      box._parts.subj.style.fontSize = Math.round(w * 0.34) + 'px';
+    });
+    requestAnimationFrame(apply);
+    if (!sizeScenes._bound) {
+      sizeScenes._bound = true;
+      window.addEventListener('resize', () => {
+        document.querySelectorAll('.place-scene').forEach(b => {
+          const w = b.getBoundingClientRect().width;
+          if (!w || !b._parts) return;
+          b._parts.anchors.forEach(a => { a.style.fontSize = Math.round(w * 0.66) + 'px'; });
+          b._parts.subj.style.fontSize = Math.round(w * 0.34) + 'px';
+        });
+      });
+    }
+  }
+
 
 
   // Рамку красим и классом, и явно. Класс .tile.good/.bad в этих двух форматах
@@ -1373,6 +1409,7 @@
       grid.appendChild(cell);
     });
     screen.appendChild(grid);
+    sizeScenes(screen);
     speakThenPlay('Где кошка?', item.audio_url);
   }
 
@@ -1407,7 +1444,7 @@
         feedback(ok);
         await playFx(ok);
         if (!ok) {
-          speakRu(item.answer === 'past' ? 'Уже сделал' : 'Делает сейчас');
+          await speakRu(item.answer === 'past' ? 'Уже сделал' : 'Делает сейчас');
           await sleep(800);
         }
         await playAudio(item.audio_url);
@@ -1523,8 +1560,11 @@
     screen.appendChild(grid);
     // сначала по-русски, что случилось, потом та же фраза по-татарски:
     // половина причин построена на отрицании, без подводки они понимаются наоборот
-    speakThenPlay(item.text_ru ? 'Слушай: ' + item.text_ru + ' Какой он?' : 'Почему? Выбери, какой он',
-                  item.audio_url);
+    (async () => {
+      await speakRu('Почему? Выбери, какой он');
+      if (item.cause_ru) { await speakRu(item.cause_ru); await sleep(120); }
+      await playAudio(item.audio_url);
+    })();
   }
 
   async function rNegation(item, screen, done) {

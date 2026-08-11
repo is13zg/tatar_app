@@ -291,3 +291,16 @@ body {
   font-size: 18px; font-weight: 800; color: var(--ink);
 }
 .home-tile .icon { font-size: 42px; display: block; margin-bottom: 6px; }
+
+/* Сцена «где кошка»: размер фигур должен идти от ширины САМОЙ сцены.
+   font-size в процентах отсчитывается от шрифта родителя, а не от блока —
+   из-за этого кошка получалась в 13 px на плитке в 259 px. Контейнерные
+   единицы cqw считают именно от ширины контейнера; для старых браузеров
+   остаются пиксельные фолбэки выше по каскаду. */
+.place-scene { container-type: inline-size; }
+.place-scene .anc { font-size: 96px; }
+.place-scene .sub { font-size: 50px; }
+@container (min-width: 1px) {
+  .place-scene .anc { font-size: 66cqw; }
+  .place-scene .sub { font-size: 34cqw; }
+}
