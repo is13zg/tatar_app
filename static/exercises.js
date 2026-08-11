@@ -249,6 +249,60 @@
         wrap.appendChild(row);
         wrap.appendChild(el('div', 'word-small', 'Слышишь слово — ищи наоборот!'));
         speakRuBrowser('Я называю слово, а ты ищи наоборот! Большой — а наоборот маленький.');
+      } else if (type === 'where') {
+        wrap.appendChild(el('div', 'instr', 'Игра «Где кошка?»'));
+        const row = el('div', '');
+        row.style.cssText = 'display:flex;gap:22px;align-items:flex-end;';
+        [['\u{1F431}\u{1F6CF}', 'өстендә'], ['\u{1F6CF}\u{1F431}', 'астында']].forEach(pair => {
+          const c = el('div', '');
+          c.style.cssText = 'display:grid;justify-items:center;gap:4px;';
+          const e = el('div', '', pair[0]);
+          e.style.fontSize = '46px';
+          c.appendChild(e);
+          c.appendChild(el('div', 'word-small', pair[1]));
+          row.appendChild(c);
+        });
+        wrap.appendChild(row);
+        wrap.appendChild(el('div', 'word-small', 'Кошка везде одна — слушай, ГДЕ она!'));
+        speakRuBrowser('Кошка на всех картинках одинаковая. Слушай внимательно, где она: сверху, снизу или рядом.');
+      } else if (type === 'past') {
+        wrap.appendChild(el('div', 'instr', 'Игра «Сейчас или уже?»'));
+        const row = el('div', '');
+        row.style.cssText = 'display:flex;gap:20px;align-items:center;';
+        const a = el('div', '', '\u25B6\uFE0F');
+        a.style.fontSize = '48px';
+        const t1 = el('div', 'word-small', 'ашый — ест сейчас');
+        const b = el('div', '', '\u2705');
+        b.style.fontSize = '48px';
+        const t2 = el('div', 'word-small', 'ашады — уже поел');
+        [a, t1, b, t2].forEach(x => row.appendChild(x));
+        wrap.appendChild(row);
+        speakRuBrowser('Слушай слово. Если он делает сейчас — нажми на стрелочку. Если уже сделал — на галочку.');
+      } else if (type === 'count') {
+        wrap.appendChild(el('div', 'instr', 'Игра «Сколько предметов?»'));
+        const row = el('div', '');
+        row.style.cssText = 'display:flex;gap:8px;';
+        for (let i = 0; i < 3; i++) {
+          const e = el('div', '', '\u{1F34E}');
+          e.style.fontSize = '44px';
+          row.appendChild(e);
+        }
+        wrap.appendChild(row);
+        wrap.appendChild(el('div', 'word-small', '\u00F6\u0447 \u0430\u043B\u043C\u0430 \u2014 \u0442\u0440\u0438 \u044F\u0431\u043B\u043E\u043A\u0430'));
+        speakRuBrowser('Посчитай предметы. Потом слушай кнопки и выбери ту, где названо столько же.');
+      } else if (type === 'why') {
+        wrap.appendChild(el('div', 'instr', 'Игра «Почему?»'));
+        const row = el('div', '');
+        row.style.cssText = 'display:flex;gap:16px;align-items:center;';
+        const a = el('div', 'word-small', 'Ул ашамады');
+        const arr = el('div', '', '\u2192');
+        arr.style.fontSize = '34px';
+        const b = el('div', '', '\u{1F37D}');
+        b.style.fontSize = '48px';
+        [a, arr, b].forEach(x => row.appendChild(x));
+        wrap.appendChild(row);
+        wrap.appendChild(el('div', 'word-small', 'Не поел — значит голодный!'));
+        speakRuBrowser('Я расскажу, что случилось. А ты выбери, какой он теперь.');
       } else if (type === 'negation') {
         wrap.appendChild(el('div', 'instr', '🚫 Игра «Әйе — Юк»'));
         const row = el('div', ''); row.style.cssText = 'display:flex;gap:18px;align-items:center;';
@@ -1227,6 +1281,220 @@
     speakThenPlay('Один или много?', null);
   }
 
+  // ---------- форматы выше уровня слова ----------
+  // Общее у всех четырёх: узнать предмет на картинке недостаточно, надо
+  // расслышать послелог, форму времени, число или связать событие с состоянием.
+
+  // Кот и опора одни и те же во всех вариантах — различается только положение,
+  // поэтому сцену рисуем CSS-ом, а не картинкой.
+  // Позиции разведены и по вертикали, и по слою: «под» и «перед» в первой
+  // версии встали почти в одну точку и на глаз не различались. Теперь у каждой
+  // свой центр (шаг ~20% высоты плитки), а «за» уходит ПОД опору (z-index 0),
+  // «перед» — НАД ней и крупнее. Опора всегда z-index 1.
+  const PLACE_CSS = {
+    on:     'left:50%;top:8%;transform:translate(-50%,-50%);z-index:2;',
+    behind: 'left:50%;top:30%;transform:translate(-50%,-50%) scale(.72);opacity:.5;z-index:0;',
+    in:     'left:50%;top:52%;transform:translate(-50%,-50%) scale(.5);z-index:2;',
+    front:  'left:50%;top:66%;transform:translate(-50%,-50%) scale(1.2);z-index:3;',
+    under:  'left:50%;top:100%;transform:translate(-50%,-50%);z-index:2;',
+    near:   'left:90%;top:52%;transform:translate(-50%,-50%);z-index:2;',
+  };
+
+  function placeScene(item, pos, size) {
+    const box = el('div', '');
+    box.style.cssText = 'position:relative;width:' + size + 'px;height:' + size +
+      'px;display:flex;align-items:center;justify-content:center;overflow:visible;';
+    const anchor = el('div', '', item.anchor);
+    anchor.style.cssText = 'font-size:' + Math.round(size * 0.56) + 'px;line-height:1;position:relative;z-index:1;';
+    box.appendChild(anchor);
+    const subj = el('div', '', item.subject);
+    subj.style.cssText = 'position:absolute;font-size:' + Math.round(size * 0.34) +
+      'px;line-height:1;' + (PLACE_CSS[pos] || PLACE_CSS.near);
+    box.appendChild(subj);
+    return box;
+  }
+
+  async function rWhere(item, screen, done) {
+    if (!introSeen('where')) await showExerciseIntro('where', screen);
+    screen.innerHTML = '';
+    screen.appendChild(el('div', 'instr', 'Где кошка?'));
+    const head = el('div', '');
+    head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:10px;';
+    const play = el('button', 'play-btn small', '\u{1F50A}');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    screen.appendChild(head);
+    const grid = el('div', 'grid-4');
+    let locked = false;
+    item.options.forEach(opt => {
+      const cell = el('button', 'tile');
+      cell.appendChild(placeScene(item, opt.pos, 108));
+      cell.onclick = async () => {
+        if (locked) return;
+        locked = true;
+        const ok = opt.id === item.answer_id;
+        reportAnswer(item.word_id, ok, 'where');
+        cell.classList.add(ok ? 'right' : 'wrong');
+        feedback(ok);
+        await playFx(ok);
+        if (!ok) {
+          const right = [...grid.children][item.options.findIndex(o => o.id === item.answer_id)];
+          if (right) right.classList.add('right');
+          await playAudio(item.audio_url);
+        }
+        await sleep(500);
+        done({ scored: true, ok });
+      };
+      grid.appendChild(cell);
+    });
+    screen.appendChild(grid);
+    speakThenPlay('Где кошка?', item.audio_url);
+  }
+
+  async function rPast(item, screen, done) {
+    if (!introSeen('past')) await showExerciseIntro('past', screen);
+    screen.innerHTML = '';
+    // Ребёнок не читает, поэтому «сейчас» и «уже» — иконки, разница только на слух
+    screen.appendChild(el('div', 'instr', 'Сейчас или уже?'));
+    const head = el('div', '');
+    head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:8px;';
+    const play = el('button', 'play-btn small', '\u{1F50A}');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    screen.appendChild(head);
+    const vis = el('div', 'big-visual');
+    vis.appendChild(visual(item));
+    screen.appendChild(vis);
+    const row = el('div', 'yn-row');
+    let locked = false;
+    const buttons = [['present', '\u25B6\uFE0F', 'Делает сейчас'], ['past', '\u2705', 'Уже сделал']];
+    buttons.forEach(pair => {
+      const key = pair[0], icon = pair[1], ru = pair[2];
+      const b = el('button', 'kid-btn ' + (key === 'past' ? '' : 'secondary'), icon);
+      b.style.cssText = 'min-width:130px;font-size:34px;';
+      b.title = ru;
+      b.onclick = async () => {
+        if (locked) return;
+        locked = true;
+        const ok = key === item.answer;
+        reportAnswer(item.word_id, ok, 'past');
+        feedback(ok);
+        await playFx(ok);
+        if (!ok) {
+          speakRu(item.answer === 'past' ? 'Уже сделал' : 'Делает сейчас');
+          await sleep(800);
+        }
+        await playAudio(item.audio_url);
+        await sleep(400);
+        done({ scored: true, ok });
+      };
+      row.appendChild(b);
+    });
+    screen.appendChild(row);
+    speakThenPlay('Сейчас или уже?', item.audio_url);
+  }
+
+  async function rCount(item, screen, done) {
+    if (!introSeen('count')) await showExerciseIntro('count', screen);
+    screen.innerHTML = '';
+    screen.appendChild(el('div', 'instr', 'Сколько предметов?'));
+    const head = el('div', '');
+    head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:8px;';
+    const play = el('button', 'play-btn small', '\u{1F50A}');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    screen.appendChild(head);
+    // N одинаковых предметов: считать надо их, картинка у всех одна и та же
+    const heap = el('div', '');
+    heap.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:10px 0;';
+    for (let i = 0; i < item.n; i++) {
+      const one = el('div', '');
+      one.style.cssText = 'width:72px;height:72px;display:flex;align-items:center;justify-content:center;';
+      if (item.image_url) {
+        const im = document.createElement('img');
+        im.src = item.image_url;
+        im.alt = '';
+        im.style.cssText = 'max-width:100%;max-height:100%;';
+        one.appendChild(im);
+      } else {
+        one.textContent = item.emoji || '\u2753';
+        one.style.fontSize = '52px';
+      }
+      heap.appendChild(one);
+    }
+    screen.appendChild(heap);
+    const row = el('div', '');
+    row.style.cssText = 'display:flex;gap:12px;justify-content:center;flex-wrap:wrap;';
+    let locked = false, picked = null;
+    const check = el('button', 'kid-btn', '\u2714 Готово');
+    check.style.marginTop = '12px';
+    check.disabled = true;
+    item.options.forEach(opt => {
+      const b = el('button', 'kid-btn secondary', '\u{1F50A}');
+      b.style.cssText = 'min-width:110px;font-size:26px;';
+      b.onclick = () => {
+        if (locked) return;
+        playAudio(opt.audio_url);          // сначала слушаем связку «число + предмет»
+        picked = opt;
+        [...row.children].forEach(c => { c.style.outline = 'none'; });
+        b.style.outline = '4px solid var(--accent)';
+        check.disabled = false;
+      };
+      row.appendChild(b);
+    });
+    check.onclick = async () => {
+      if (locked || !picked) return;
+      locked = true;
+      const ok = picked.n === item.answer;
+      reportAnswer(item.word_id, ok, 'count');
+      feedback(ok);
+      await playFx(ok);
+      const right = item.options.find(o => o.n === item.answer);
+      if (right) await playAudio(right.audio_url);
+      await sleep(400);
+      done({ scored: true, ok });
+    };
+    screen.appendChild(row);
+    screen.appendChild(check);
+    speakThenPlay('Сколько предметов?', item.audio_url);
+  }
+
+  async function rWhy(item, screen, done) {
+    if (!introSeen('why')) await showExerciseIntro('why', screen);
+    screen.innerHTML = '';
+    screen.appendChild(el('div', 'instr', 'Почему? Какой он?'));
+    const head = el('div', '');
+    head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:10px;';
+    const play = el('button', 'play-btn small', '\u{1F50A}');
+    play.onclick = () => playAudio(item.audio_url);
+    head.appendChild(play);
+    screen.appendChild(head);
+    const grid = el('div', 'grid-4');
+    let locked = false;
+    item.options.forEach(opt => {
+      const cell = el('button', 'tile');
+      cell.appendChild(visual(opt));
+      cell.onclick = async () => {
+        if (locked) return;
+        locked = true;
+        const ok = opt.id === item.answer_id;
+        reportAnswer(item.word_id, ok, 'why');
+        cell.classList.add(ok ? 'right' : 'wrong');
+        feedback(ok);
+        await playFx(ok);
+        if (!ok) {
+          const right = [...grid.children][item.options.findIndex(o => o.id === item.answer_id)];
+          if (right) right.classList.add('right');
+        }
+        await sleep(500);
+        done({ scored: true, ok });
+      };
+      grid.appendChild(cell);
+    });
+    screen.appendChild(grid);
+    speakThenPlay('Почему? Выбери, какой он', item.audio_url);
+  }
+
   async function rNegation(item, screen, done) {
     if (!introSeen('negation')) await showExerciseIntro('negation', screen);
     screen.innerHTML = '';
@@ -1592,6 +1860,10 @@
     with_what: rWithWhat,
     negation: rNegation,
     plural: rPlural,
+    where: rWhere,
+    past: rPast,
+    count: rCount,
+    why: rWhy,
     dress: rDress,
     memory: rMemory,
     sort_baskets: rSortBaskets,
@@ -1796,5 +2068,7 @@
     showStart();
   }
 
-  window.Lesson = { run, api, playAudio, speakRu, visual, el, confetti };
+  // RENDERERS наружу — чтобы админ мог посмотреть ОДНО задание нужного типа
+  // (_preview_ex.html), не проходя урок целиком ради редкого формата
+  window.Lesson = { run, api, playAudio, speakRu, visual, el, confetti, RENDERERS };
 })();

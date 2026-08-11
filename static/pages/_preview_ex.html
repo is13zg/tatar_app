@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Просмотр упражнения — TT-Learn Kids</title>
+  <link rel="stylesheet" href="/static/kid.css">
+  <script src="/static/exercises.js?v=20260811"></script>
+</head>
+<body>
+<!-- Служебная страница для админа: рисует ОДНО задание нужного типа из живого
+     урока, не проходя урок целиком. Нужна, чтобы смотреть глазами новые
+     форматы (сцену послелогов, счёт, «сейчас или уже»), где вёрстка своя.
+     Открывать так: _preview_ex.html?theme=38&type=where -->
+<div class="kid-wrap">
+  <div id="screen" class="kid-screen"></div>
+</div>
+<script>
+(async () => {
+  const q = new URLSearchParams(location.search);
+  const theme = q.get('theme') || '38';
+  const type = q.get('type') || 'where';
+  const screen = document.getElementById('screen');
+  const token = localStorage.getItem('token');
+  let found = null;
+  for (let lesson = 1; lesson <= 8 && !found; lesson++) {
+    for (let tries = 0; tries < 12 && !found; tries++) {
+      const r = await fetch(`/lesson/unit/${theme}/${lesson}`, { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) break;
+      const data = await r.json();
+      found = (data.items || []).find(i => i.type === type) || null;
+    }
+  }
+  if (!found) {
+    screen.textContent = 'Задание типа «' + type + '» в теме ' + theme + ' не встретилось';
+    return;
+  }
+  window.__item = found;
+  localStorage.setItem('intro_' + type, '1');   // демо пропускаем: смотрим само задание
+  window.Lesson.RENDERERS[type](found, screen, () => {
+    screen.appendChild(window.Lesson.el('div', 'instr', 'Задание завершено'));
+  });
+})();
+</script>
+</body>
+</html>
