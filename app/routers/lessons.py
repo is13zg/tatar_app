@@ -1,6 +1,7 @@
 import json
 import math
 import random
+import re
 from datetime import datetime, timedelta
 from typing import Annotated, Optional
 
@@ -1233,6 +1234,9 @@ def ex_count(target: dict) -> Optional[dict]:
     }
 
 
+# вопросительные слова звучат в каждом уроке, их не ждём от словаря
+STORY_FUNCTION_WORDS = {"кем", "нәрсә", "бу", "һәм"}
+
 MOOD_THEME = "Кәеф ничек? Настроения"
 MOOD_LOOKALIKE = {"шат": {"көлә"}, "көлә": {"шат"}}
 
@@ -1292,6 +1296,41 @@ def ex_why(target: dict, mood_pool: list[dict]) -> Optional[dict]:
         "options": [_brief(w) for w in options],
         "answer_id": target["id"],
     }
+
+
+def ex_story(stories: list[dict], words_by_tt: dict[str, dict]) -> Optional[dict]:
+    """Три предложения подряд и вопрос по их содержанию — единственный формат,
+    где звучит связный текст. Ответить, узнав одно слово, нельзя: все три
+    героя показаны и все три прозвучали, надо удержать, кто что делал.
+
+    Истории и правила к ним — tools/stories.py, озвучка — tools/gen_story_tts.py.
+    Порядок плиток случаен, порядок предложений — нет: это текст, а не набор фраз."""
+    from ..tts import cached_tts_url
+    random.shuffle(stories)
+    for st in stories:
+        parts, ok = [], True
+        for tt_s, ru_s, subj in st["parts"]:
+            w = words_by_tt.get(subj.lower())
+            url = cached_tts_url(tt_s)
+            if not w or not url:
+                ok = False
+                break
+            parts.append({"text_tt": tt_s, "text_ru": ru_s, "audio_url": url,
+                          "word_id": w["id"], "image_url": w["image_url"], "emoji": w["emoji"]})
+        q_url = cached_tts_url(st["question"][0]) if ok else None
+        answer = words_by_tt.get(st["answer"].lower())
+        if not ok or not q_url or not answer:
+            continue
+        options = [_brief(words_by_tt[subj.lower()]) for _tt, _ru, subj in st["parts"]]
+        random.shuffle(options)
+        return {
+            "type": "story", "word_id": answer["id"], "key": st["key"],
+            "parts": parts,
+            "question": {"text_tt": st["question"][0], "text_ru": st["question"][1],
+                         "audio_url": q_url},
+            "options": options, "answer_id": answer["id"],
+        }
+    return None
 
 
 def ex_dress(scene: dict, clothes: list[dict]) -> Optional[dict]:
@@ -1374,7 +1413,8 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                     place_pool: Optional[list[dict]] = None,
                     past_pool: Optional[list[dict]] = None,
                     count_pool: Optional[list[dict]] = None,
-                    mood_pool: Optional[list[dict]] = None) -> list[dict]:
+                    mood_pool: Optional[list[dict]] = None,
+                    stories: Optional[tuple] = None) -> list[dict]:
     """Урок: чередование «карточка → сразу практика» + разнообразное закрепление.
     phrase_mode: тема из фраз — только карточки, звучание и повторение за диктором.
     allow_build: «собери слово» — только с 3-го урока юнита (для начала это слишком сложно)."""
@@ -1512,6 +1552,8 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             extra_gens.append(lambda sc=sc: ex_dress(sc, clothes_pool))  # «одень Марата»
         if season_pool and late_unit:
             extra_gens.append(lambda: ex_seasons(season_pool))  # альбом времён года
+        if stories and stories[0]:
+            extra_gens.append(lambda: ex_story(list(stories[0]), stories[1]))  # три фразы + вопрос
         if place_pool:
             extra_gens.append(lambda: ex_where(random.choice(place_pool), place_pool))  # «Кайда песи?»
         if past_pool:
@@ -1871,7 +1913,8 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                                 place_pool=await place_words(db, learned | {theme.id}),
                                 past_pool=await verb_words(db, learned),
                                 count_pool=await count_words(db, learned),
-                                mood_pool=await mood_words(db, learned | {theme.id}))
+                                mood_pool=await mood_words(db, learned | {theme.id}),
+                                stories=await story_pool(db, theme.order_index))
 
     if len(items) < 3:
         # страховка: без озвучки/картинок упражнения могли не собраться — даём карточки
@@ -1957,6 +2000,41 @@ async def count_words(db: AsyncSession, allowed: Optional[set] = None) -> list[d
             continue
         out.append(dto)
     return out
+
+
+async def story_pool(db: AsyncSession, up_to_order: Optional[int]) -> tuple:
+    """Истории, все слова которых пройдены к этому месту пути, и их подлежащие.
+
+    Порог считается по базе, а не проставлен руками: слово могло переехать в
+    другой юнит, и история молча стала бы опережать словарь."""
+    from tools.stories import STORIES
+    rows = (await db.execute(select(Word, Theme.order_index).join(Theme, Theme.id == Word.theme_id))).all()
+    order_by_tt, dto_by_tt = {}, {}
+    for w, order in rows:
+        tt = w.text_tt.lower()
+        if tt not in order_by_tt or order < order_by_tt[tt]:
+            order_by_tt[tt] = order
+            dto_by_tt[tt] = word_dto(w)
+    limit = up_to_order if up_to_order is not None else 10 ** 6
+    multi = sorted((t for t in order_by_tt if " " in t), key=len, reverse=True)
+
+    def needed(text: str) -> list[str]:
+        low = text.lower()
+        out = []
+        for m in multi:
+            if m in low:
+                out.append(m)
+                low = low.replace(m, " ")
+        return out + [w for w in re.split(r"[^\wәөүҗңһӘӨҮҖҢҺ-]+", low) if w]
+
+    ready = []
+    for st in STORIES:
+        words = []
+        for tt_s, _ru, _subj in st["parts"]:
+            words += needed(tt_s)
+        if all(order_by_tt.get(w, 10 ** 6) <= limit for w in words if w not in STORY_FUNCTION_WORDS):
+            ready.append(st)
+    return ready, dto_by_tt
 
 
 async def plural_words(db: AsyncSession, allowed: Optional[set] = None) -> list[dict]:

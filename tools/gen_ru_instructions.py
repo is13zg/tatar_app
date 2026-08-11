@@ -68,6 +68,8 @@ INSTRUCTIONS = {
     "seychas_ili_uzhe": "Сейчас или уже?",
     "skolko_predmetov": "Сколько предметов?",
     "pochemu_kakoy": "Почему? Выбери, какой он",
+    "poslushay_istoriyu": "Послушай историю",
+    "demo_story": "Сейчас будет история из трёх кусочков. Слушай, кто что делает, а потом ответь на вопрос.",
     "prichina_ne_poel": "Он не поел.",
     "prichina_ne_pil": "Он не пил воду.",
     "prichina_ne_spal": "Он не спал.",

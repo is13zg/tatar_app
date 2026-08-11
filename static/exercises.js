@@ -56,6 +56,9 @@
     'Сейчас или уже?': 'seychas_ili_uzhe',
     'Сколько предметов?': 'skolko_predmetov',
     'Почему? Выбери, какой он': 'pochemu_kakoy',
+    'Послушай историю': 'poslushay_istoriyu',
+    'Ответь на вопрос!': 'otvet_na_vopros',
+    'Сейчас будет история из трёх кусочков. Слушай, кто что делает, а потом ответь на вопрос.': 'demo_story',
     'Он не поел.': 'prichina_ne_poel',
     'Он не пил воду.': 'prichina_ne_pil',
     'Он не спал.': 'prichina_ne_spal',
@@ -263,6 +266,18 @@
         wrap.appendChild(row);
         wrap.appendChild(el('div', 'word-small', 'Слышишь слово — ищи наоборот!'));
         speakRuBrowser('Я называю слово, а ты ищи наоборот! Большой — а наоборот маленький.');
+      } else if (type === 'story') {
+        wrap.appendChild(el('div', 'instr', 'Игра «Послушай историю»'));
+        const row = el('div', '');
+        row.style.cssText = 'display:flex;gap:14px;align-items:center;';
+        ['\u{1F415}', '\u{1F408}', '\u{1F414}'].forEach(e => {
+          const d = el('div', '', e);
+          d.style.fontSize = '44px';
+          row.appendChild(d);
+        });
+        wrap.appendChild(row);
+        wrap.appendChild(el('div', 'word-small', 'Три фразы подряд, потом вопрос'));
+        speakRu('Сейчас будет история из трёх кусочков. Слушай, кто что делает, а потом ответь на вопрос.');
       } else if (type === 'where') {
         wrap.appendChild(el('div', 'instr', 'Игра «Где кошка?»'));
         const row = el('div', '');
@@ -1567,6 +1582,109 @@
     })();
   }
 
+  async function rStory(item, screen, done) {
+    if (!introSeen('story')) await showExerciseIntro('story', screen);
+    screen.innerHTML = '';
+    screen.appendChild(el('div', 'instr', 'Послушай историю'));
+
+    // Сначала ТОЛЬКО история: вариантов ответа ещё нет, чтобы ребёнок слушал
+    // текст, а не искал глазами подходящую плитку.
+    const row = el('div', '');
+    row.style.cssText = 'display:flex;gap:10px;justify-content:center;align-items:flex-start;margin:8px 0 14px;';
+    const cards = item.parts.map(p => {
+      const c = el('div', '');
+      c.style.cssText = 'flex:1 1 0;max-width:150px;display:grid;justify-items:center;gap:6px;' +
+        'padding:8px;border-radius:18px;border:4px solid transparent;transition:border-color .2s,transform .2s;';
+      const box = el('div', '');
+      box.style.cssText = 'width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;';
+      box.appendChild(visual(p));
+      c.appendChild(box);
+      const t = el('div', 'word-small', p.text_tt);
+      t.style.cssText = 'font-size:13px;line-height:1.15;';
+      c.appendChild(t);
+      row.appendChild(c);
+      return c;
+    });
+    screen.appendChild(row);
+
+    const again = el('button', 'kid-btn secondary', '\u{1F50A} Ещё раз');
+    const go = el('button', 'kid-btn', '\u25B6\uFE0F Вопрос');
+    go.disabled = true;
+    const btns = el('div', '');
+    btns.style.cssText = 'display:flex;gap:12px;justify-content:center;flex-wrap:wrap;';
+    btns.appendChild(again);
+    btns.appendChild(go);
+    screen.appendChild(btns);
+
+    // Читаем подряд, подсвечивая ту картинку, о которой идёт речь: так связь
+    // «эта фраза — про этого героя» видна, а не выводится из ниоткуда.
+    let telling = false;
+    const tell = async () => {
+      if (telling) return;
+      telling = true;
+      again.disabled = true;
+      for (let i = 0; i < item.parts.length; i++) {
+        cards.forEach(c => { c.style.borderColor = 'transparent'; c.style.transform = 'none'; });
+        cards[i].style.borderColor = 'var(--accent)';
+        cards[i].style.transform = 'scale(1.04)';
+        await playAudio(item.parts[i].audio_url);
+        await sleep(260);
+      }
+      cards.forEach(c => { c.style.borderColor = 'transparent'; c.style.transform = 'none'; });
+      telling = false;
+      again.disabled = false;
+      go.disabled = false;
+    };
+    again.onclick = tell;
+
+    go.onclick = async () => {
+      if (telling) return;
+      // История остаётся на экране: задание на понимание, а не на память
+      btns.remove();
+      screen.appendChild(el('div', 'instr', 'Ответь на вопрос'));
+      const head = el('div', '');
+      head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:10px;';
+      const play = el('button', 'play-btn small', '\u{1F50A}');
+      play.onclick = () => playAudio(item.question.audio_url);
+      head.appendChild(play);
+      head.appendChild(el('div', 'word-big', item.question.text_tt));
+      screen.appendChild(head);
+
+      const grid = el('div', 'tile-grid');
+      grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+      let locked = false;
+      item.options.forEach(opt => {
+        const cell = el('button', 'tile');
+        cell.appendChild(visual(opt));
+        cell.onclick = async () => {
+          if (locked) return;
+          locked = true;
+          const ok = opt.id === item.answer_id;
+          reportAnswer(item.word_id, ok, 'story');
+          markTile(cell, ok);
+          feedback(ok);
+          await playFx(ok);
+          if (!ok) {
+            const right = [...grid.children][item.options.findIndex(o => o.id === item.answer_id)];
+            if (right) markTile(right, true);
+            // переслушиваем предложение про верного героя — вот где был ответ
+            const part = item.parts.find(p => p.word_id === item.answer_id);
+            if (part) await playAudio(part.audio_url);
+          }
+          await sleep(500);
+          done({ scored: true, ok });
+        };
+        grid.appendChild(cell);
+      });
+      screen.appendChild(grid);
+      await playAudio(item.question.audio_url);
+    };
+
+    await speakRu('Послушай историю');
+    await sleep(150);
+    tell();
+  }
+
   async function rNegation(item, screen, done) {
     if (!introSeen('negation')) await showExerciseIntro('negation', screen);
     screen.innerHTML = '';
@@ -1944,6 +2062,7 @@
     with_what: rWithWhat,
     negation: rNegation,
     plural: rPlural,
+    story: rStory,
     where: rWhere,
     past: rPast,
     count: rCount,
