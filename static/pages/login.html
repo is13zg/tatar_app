@@ -54,7 +54,9 @@
         const data = await res.json();
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('username', username);
-        window.location.href = '/static/pages/home.html';
+        // ?next= — чтобы служебные страницы могли отправить на вход и вернуть обратно
+        const next = new URLSearchParams(location.search).get('next');
+        window.location.href = (next && next.startsWith('/static/')) ? next : '/static/pages/home.html';
       } catch (e) {
         info.textContent = 'Неверный логин или пароль';
       }

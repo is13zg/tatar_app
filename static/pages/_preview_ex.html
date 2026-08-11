@@ -21,20 +21,43 @@
   const theme = q.get('theme') || '38';
   const type = q.get('type') || 'where';
   const screen = document.getElementById('screen');
+  const say = (html) => { screen.innerHTML = '<div class="instr">' + html + '</div>'; };
+
   const token = localStorage.getItem('token');
-  let found = null;
+  if (!token) {
+    // раньше страница молча писала «задание не встретилось» — на деле её просто
+    // никто не пускал к API, и это отправляло искать несуществующую поломку
+    say('Сначала нужно войти.<br><br><a class="kid-btn" href="/static/pages/login.html?next=' +
+        encodeURIComponent(location.pathname + location.search) + '">Войти</a>');
+    return;
+  }
+
+  let found = null, status = 0, tried = 0;
   for (let lesson = 1; lesson <= 8 && !found; lesson++) {
     for (let tries = 0; tries < 12 && !found; tries++) {
-      const r = await fetch(`/lesson/unit/${theme}/${lesson}`, { headers: { Authorization: 'Bearer ' + token } });
+      const r = await fetch('/lesson/unit/' + theme + '/' + lesson, { headers: { Authorization: 'Bearer ' + token } });
+      status = r.status;
       if (!r.ok) break;
+      tried++;
       const data = await r.json();
       found = (data.items || []).find(i => i.type === type) || null;
     }
+    if (status === 401 || status === 403) break;
   }
-  if (!found) {
-    screen.textContent = 'Задание типа «' + type + '» в теме ' + theme + ' не встретилось';
+
+  if (status === 401) {
+    say('Вход просрочен.<br><br><a class="kid-btn" href="/static/pages/login.html?next=' +
+        encodeURIComponent(location.pathname + location.search) + '">Войти заново</a>');
     return;
   }
+  if (status === 403) { say('Тема ' + theme + ' закрыта для этого пользователя. Нужен админский вход.'); return; }
+  if (status === 404) { say('Темы ' + theme + ' не существует.'); return; }
+  if (!found) {
+    say('Задание типа «' + type + '» в теме ' + theme + ' не встретилось за ' + tried +
+        ' прогонов. Формат либо не подключён к этой теме, либо ему не хватает данных.');
+    return;
+  }
+
   window.__item = found;
   // НЕ трогаем localStorage: раньше просмотр формата гасил демо навсегда,
   // и ребёнок на этом же планшете больше никогда его не видел
