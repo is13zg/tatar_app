@@ -19,7 +19,8 @@ sys.path.insert(0, os.getcwd())
 
 from app.forms import PAST_TT  # noqa: E402
 from app.routers.lessons import (ANCHOR_TT, COUNT_MAX, COUNTABLE_TT,  # noqa: E402
-                                 MOOD_CAUSES, NUMERALS_TT, PLACE_SCENES)
+                                 MOOD_CAUSES, NUMERALS_TT, PLACE_SCENES,
+                                 SORT_SCENARIOS)
 from app.tts import cached_tts_url, synthesize_to_file  # noqa: E402
 
 
@@ -43,6 +44,10 @@ def collect(db: str) -> list[str]:
         phrases += [f"{NUMERALS_TT[n]} {tt}" for n in range(2, COUNT_MAX + 1)]
 
     phrases += [cause for cause, _ru in MOOD_CAUSES.values()]
+
+    # названия корзин сортировки: сценарные и названия тем (тема тоже бывает корзиной)
+    phrases += [b["title_tt"] for sc in SORT_SCENARIOS for b in sc["baskets"] if b.get("title_tt")]
+    phrases += [r[0] for r in con.execute("select title_tt from themes where title_tt is not null")]
 
     # фразы самих новых тем (карточка озвучивает предложение)
     for theme in ("Кайда? Где что лежит", "Кәеф ничек? Настроения", "Һава торышы. Погода"):

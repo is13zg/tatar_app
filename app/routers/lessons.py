@@ -1003,6 +1003,20 @@ def _distinct_visual_pick(words: list[dict], n: int, seen: set[str]) -> Optional
     return None
 
 
+def _basket(bid: int, title_ru: str, title_tt: Optional[str], icon: str) -> dict:
+    """Подпись корзины: татарское имя главное, русское — мелким для взрослого.
+    Озвучка татарская из кэша TTS; если фразы в кэше нет, фронт проговорит
+    русское название браузерным синтезом, как было раньше."""
+    from ..tts import cached_tts_url
+    ru = title_ru
+    if title_tt and ru.startswith(title_tt):
+        # у новых тем название уже содержит татарскую часть («Кәеф ничек? Настроения»),
+        # иначе подпись задваивалась бы сама с собой
+        ru = ru[len(title_tt):].lstrip(' .—-') or title_ru
+    return {"id": bid, "title_ru": ru, "title_tt": title_tt or None,
+            "icon_emoji": icon, "audio_url": cached_tts_url(title_tt) if title_tt else None}
+
+
 def ex_sort_baskets(theme_a: Theme, words_a: list[dict], theme_b: Theme, words_b: list[dict]) -> Optional[dict]:
     seen: set[str] = set()
     pick_a = _distinct_visual_pick(words_a, 2, seen)
@@ -1018,8 +1032,8 @@ def ex_sort_baskets(theme_a: Theme, words_a: list[dict], theme_b: Theme, words_b
     return {
         "type": "sort_baskets",
         "baskets": [
-            {"id": theme_a.id, "title_ru": theme_a.title_ru, "icon_emoji": theme_a.icon_emoji or "📦"},
-            {"id": theme_b.id, "title_ru": theme_b.title_ru, "icon_emoji": theme_b.icon_emoji or "📦"},
+            _basket(theme_a.id, theme_a.title_ru, theme_a.title_tt, theme_a.icon_emoji or "📦"),
+            _basket(theme_b.id, theme_b.title_ru, theme_b.title_tt, theme_b.icon_emoji or "📦"),
         ],
         "items": items,
     }
@@ -1031,19 +1045,22 @@ SORT_SCENARIOS = [
     {
         "title": "🎒 Собери портфель",
         "baskets": [
-            {"id": 1, "title_ru": "В портфель", "icon_emoji": "🎒",
+            {"id": 1, "title_ru": "В портфель", "title_tt": "Букчага", "icon_emoji": "🎒",
              "themes": ["Школа и урок", "Пенал и рюкзак"]},
-            {"id": 2, "title_ru": "Не нужно", "icon_emoji": "🚫",
+            {"id": 2, "title_ru": "Не нужно", "title_tt": "Кирәкми", "icon_emoji": "🚫",
              "themes": ["Продукты и напитки", "Игрушки", "Фрукты/ягоды"]},
         ],
     },
     {
         "title": "🛒 Разложи по магазинам",
         "baskets": [
-            {"id": 1, "title_ru": "Еда", "icon_emoji": "🥖",
+            # ашамлык / кием / уенчык ребёнок к этому моменту уже проходил
+            {"id": 1, "title_ru": "Еда", "title_tt": "Ашамлыклар", "icon_emoji": "🥖",
              "themes": ["Продукты и напитки", "Фрукты/ягоды", "Овощи"]},
-            {"id": 2, "title_ru": "Одежда", "icon_emoji": "👗", "themes": ["Одежда и обувь"]},
-            {"id": 3, "title_ru": "Игрушки", "icon_emoji": "🧸", "themes": ["Игрушки"]},
+            {"id": 2, "title_ru": "Одежда", "title_tt": "Кием", "icon_emoji": "👗",
+             "themes": ["Одежда и обувь"]},
+            {"id": 3, "title_ru": "Игрушки", "title_tt": "Уенчыклар", "icon_emoji": "🧸",
+             "themes": ["Игрушки"]},
         ],
     },
 ]
@@ -1091,8 +1108,7 @@ def ex_seasons(season_words: list[dict]) -> Optional[dict]:
         url = cached_tts_url(phrase)
         if not url:
             return None
-        baskets.append({"id": idx, "title_ru": f"{season} — {w['text_ru']}",
-                        "icon_emoji": SEASON_ICONS[season]})
+        baskets.append(_basket(idx, w["text_ru"], season, SEASON_ICONS[season]))
         items.append({"word_id": w["id"], "text_tt": phrase, "audio_url": url,
                       # нейтральный значок: иконка сезона на плитке выдавала ответ
                       "image_url": None, "emoji": "🔊", "basket": idx})
@@ -1320,7 +1336,7 @@ def ex_sort_groups(scenario: dict, words_by_theme: dict[str, list[dict]]) -> Opt
         picked = _distinct_visual_pick(pool, per_basket, seen)
         if not picked:
             return None
-        baskets.append({"id": b["id"], "title_ru": b["title_ru"], "icon_emoji": b["icon_emoji"]})
+        baskets.append(_basket(b["id"], b["title_ru"], b.get("title_tt"), b["icon_emoji"]))
         items += [{"word_id": w["id"], "text_tt": w["text_tt"], "audio_url": w["audio_url"],
                    "image_url": w["image_url"], "emoji": w["emoji"], "basket": b["id"]}
                   for w in picked]

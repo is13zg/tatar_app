@@ -1651,11 +1651,23 @@
     item.baskets.forEach(b => {
       const bx = el('div', 'basket');
       bx.appendChild(el('span', 'icon', b.icon_emoji));
-      bx.appendChild(el('div', '', b.title_ru));
+      // татарское имя корзины — крупно, русское мельче: ребёнку нужен звук,
+      // взрослому рядом — понятная подпись
+      if (b.title_tt) {
+        const tt = el('div', '', b.title_tt);
+        tt.style.cssText = 'font-weight:800;';
+        bx.appendChild(tt);
+        const ru = el('div', '', b.title_ru);
+        ru.style.cssText = 'font-size:13px;opacity:.65;';
+        bx.appendChild(ru);
+      } else {
+        bx.appendChild(el('div', '', b.title_ru));
+      }
       bx.appendChild(el('div', 'caught', ''));
       bx.onclick = async () => {
         if (lockedAll) return;
-        if (!selected) { speakRuBrowser(b.title_ru); return; }  // тап по пустой корзине — озвучиваем её
+        // тап по пустой корзине — озвучиваем её: по-татарски, если есть запись
+        if (!selected) { if (b.audio_url) playAudio(b.audio_url); else speakRuBrowser(b.title_ru); return; }
         const it = selected; selected = null;
         it.node.classList.remove('selected');
         const ok = it.data.basket === b.id;
