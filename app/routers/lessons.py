@@ -110,10 +110,9 @@ CONFUSABLE_TT = {
     frozenset({"иртә", "иртәгә"}),
     frozenset({"каймак", "коймак"}),
     frozenset({"укытучы", "укучы"}),
-    frozenset({"каләм", "кылкаләм"}),
+    frozenset({"каләм", "карандаш"}),
     frozenset({"кабак", "ташкабак"}),
     frozenset({"сау бул", "сау булыгыз"}),
-    frozenset({"кич", "кичә"}),
     frozenset({"чеби", "чебен"}),
     frozenset({"чебен", "черки"}),
     frozenset({"чеби", "черки"}),
@@ -521,7 +520,7 @@ OPPOSITES_TT = {
     "ак": "кара", "кара": "ак",
     "көн": "төн", "төн": "көн",
     # признаки предметов (юнит «Нинди?»)
-    "калын": "юка", "юка": "калын",
+    "калын": "нечкә", "нечкә": "калын",
     "яңа": "иске", "иске": "яңа",
     "чиста": "пычрак", "пычрак": "чиста",
     "авыр": "җиңел", "җиңел": "авыр",
@@ -631,7 +630,7 @@ def ex_odd_one(pool: list[dict], other_words: list[dict]) -> Optional[dict]:
 
 
 def ex_alt_question(target: dict, pool: list[dict]) -> Optional[dict]:
-    """Альтернативный вопрос «Пәлтә калынмы, юкамы?» — выбор из двух признаков.
+    """Альтернативный вопрос «Пәлтә калынмы, нечкәме?» — выбор из двух признаков.
     Работает на парах OPPOSITES_TT: звучит вопрос с обоими вариантами,
     ребёнок жмёт картинку того признака, который верен. Фраза берётся
     только из кэша TTS (предозвучка — tools/gen_alt_tts.py)."""
@@ -1255,11 +1254,13 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
         # один «бонусный» формат за урок из доступных по уровню — разнообразие без раздувания длины
         extra_gens = []
         known_pool = new_words + review_words  # партнёр-антоним — только из знакомых ребёнку слов
-        for w in new_words:
-            if w["text_tt"].lower() in OPPOSITES_TT:
-                extra_gens.append(lambda w=w: ex_opposite(w, pool, known_pool))
-                extra_gens.append(lambda w=w: ex_alt_question(w, known_pool))  # «калынмы, юкамы?»
-                break
+        # пар в уроке бывает две (авыр/җиңел и калын/нечкә): берём случайную, иначе
+        # первая всегда перехватывала слот и вторая не тренировалась ни разу
+        opp_words = [w for w in new_words if w["text_tt"].lower() in OPPOSITES_TT]
+        if opp_words:
+            w = random.choice(opp_words)
+            extra_gens.append(lambda w=w: ex_opposite(w, pool, known_pool))
+            extra_gens.append(lambda w=w: ex_alt_question(w, known_pool))  # «калынмы, нечкәме?»
         if sentences_ok:
             extra_gens.append(lambda: ex_windows(pool))
         if allow_build:

@@ -29,7 +29,9 @@ ICON = "🔎"
 # и напоследок оценочные признаки (урок 4). Каждая пара антонимов целиком
 # внутри одного урока, иначе игра «Найди наоборот» не запускается.
 # text_tt, text_ru, emoji, sentence_tt, sentence_ru, en_prompt (для картинки)
-# sentence_tt = None означает «фраза правилась вручную, не перезаписывать»
+# Фразы здесь — только для ПУСТОЙ базы. Владелец правит их на проде руками
+# («Кием чиста.», «Сөлге юеш.», «Карандаш нечкә.»), и повторный прогон seed
+# их больше не трогает — обновляются только перевод и эмодзи.
 WORDS = [
     # урок 1 — смотрим глазами (пара на одних руках, пара на одной машинке)
     ("чиста", "чистый", "🧼", "Кул чиста.", "Руки чистые.",
@@ -58,7 +60,7 @@ WORDS = [
      "the very same size cube but light as foam, a smiling child holding it up on one open palm"),
     ("калын", "толстый", "📗", "Китап калын.", "Книга толстая.",
      "a very thick closed green book standing upright, seen from the side to show how thick it is"),
-    ("юка", "тонкий", "📗", "Китап юка.", "Книга тонкая.",
+    ("нечкә", "тонкий", "📗", "Китап нечкә.", "Книга тонкая.",
      "the very same green book but very thin, standing upright, seen from the side to show how thin it is"),
     # урок 4 — оценка и качество
     ("җылы", "тёплый", "☕", "Чәй җылы.", "Чай тёплый.",
@@ -84,7 +86,7 @@ def main() -> None:
         cur = con.execute(
             "insert into themes (title_ru, title_tt, icon_emoji, order_index, description) values (?,?,?,?,?)",
             (THEME_RU, THEME_TT, ICON, max_order + 1,
-             "Признаки предметов: калын, юка, яңа, иске, чиста, пычрак и другие"),
+             "Признаки предметов: калын, нечкә, яңа, иске, чиста, пычрак и другие"),
         )
         theme_id = cur.lastrowid
         print(f"создана тема id={theme_id}, order={max_order + 1}")
@@ -93,16 +95,8 @@ def main() -> None:
     for tt, ru, emoji, s_tt, s_ru, _en in WORDS:
         ex = con.execute("select id from words where theme_id=? and lower(text_tt)=lower(?)",
                          (theme_id, tt)).fetchone()
-        if ex:
-            if s_tt is None:  # фраза правилась вручную — оставляем как есть
-                con.execute("update words set text_ru=?, emoji=? where id=?", (ru, emoji, ex["id"]))
-                updated += 1
-                continue
-            # если фраза поменялась — старая озвучка больше ей не соответствует
-            con.execute("update words set text_ru=?, emoji=?, sentence_tt=?, sentence_ru=?, "
-                        "sentence_audio_url = case when sentence_tt=? then sentence_audio_url else null end "
-                        "where id=?",
-                        (ru, emoji, s_tt, s_ru, s_tt, ex["id"]))
+        if ex:  # слово уже есть — фразу не трогаем, она может быть правлена руками
+            con.execute("update words set text_ru=?, emoji=? where id=?", (ru, emoji, ex["id"]))
             updated += 1
             continue
         con.execute(
