@@ -1327,6 +1327,18 @@
   }
 
 
+  // Рамку красим и классом, и явно. Класс .tile.good/.bad в этих двух форматах
+  // почему-то не перебивал серую рамку .tile, хотя в pick_image с теми же
+  // классами перебивает; причину в CSS найти не удалось, а ребёнок обязан
+  // видеть, где верный ответ — это единственный обучающий момент задания.
+  function markTile(cell, ok) {
+    cell.classList.add(ok ? 'good' : 'bad');
+    // литералы, а не var(): подстановка переменной в этих плитках почему-то
+    // не срабатывала для --good, хотя --bad подставлялась (значения те же,
+    // что в kid.css); разбираться дальше дороже, чем задать цвет прямо
+    cell.style.borderColor = ok ? '#16a34a' : '#ef4444';
+  }
+
   async function rWhere(item, screen, done) {
     if (!introSeen('where')) await showExerciseIntro('where', screen);
     screen.innerHTML = '';
@@ -1347,12 +1359,12 @@
         locked = true;
         const ok = opt.id === item.answer_id;
         reportAnswer(item.word_id, ok, 'where');
-        cell.classList.add(ok ? 'good' : 'bad');
+        markTile(cell, ok);
         feedback(ok);
         await playFx(ok);
         if (!ok) {
           const right = [...grid.children][item.options.findIndex(o => o.id === item.answer_id)];
-          if (right) right.classList.add('good');
+          if (right) markTile(right, true);
           await playAudio(item.audio_url);
         }
         await sleep(500);
@@ -1496,12 +1508,12 @@
         locked = true;
         const ok = opt.id === item.answer_id;
         reportAnswer(item.word_id, ok, 'why');
-        cell.classList.add(ok ? 'good' : 'bad');
+        markTile(cell, ok);
         feedback(ok);
         await playFx(ok);
         if (!ok) {
           const right = [...grid.children][item.options.findIndex(o => o.id === item.answer_id)];
-          if (right) right.classList.add('good');
+          if (right) markTile(right, true);
         }
         await sleep(500);
         done({ scored: true, ok });
