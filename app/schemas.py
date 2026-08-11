@@ -43,6 +43,8 @@ class ThemeOut(BaseModel):
     sample_image_url: Optional[str] = None
     icon_emoji: Optional[str] = None
     title_tt: Optional[str] = None
+    checked_at: Optional[datetime] = None
+    checked_note: Optional[str] = None
 
 
 class WordOut(BaseModel):

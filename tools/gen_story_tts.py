@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Озвучка мини-историй: 42 предложения и 14 вопросов.
+"""Озвучка мини-историй: по четыре предложения и два вопроса на историю.
 
 Движок берёт фразы только из кэша app.tts (ключ — точная строка), поэтому
 без прогона этого скрипта формат просто не выпадет.
@@ -21,7 +21,7 @@ async def main() -> None:
     phrases = []
     for st in STORIES:
         phrases += [tt for tt, _ru, _subj in st["parts"]]
-        phrases.append(st["question"][0])
+        phrases += [q["tt"] for q in st["questions"]]
     phrases = list(dict.fromkeys(phrases))
 
     done = skip = err = 0

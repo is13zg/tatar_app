@@ -9,6 +9,9 @@ _COLUMNS: dict[str, dict[str, str]] = {
         "title_tt": "VARCHAR(120)",
         "icon_emoji": "VARCHAR(16)",
         "order_index": "INTEGER DEFAULT 0",
+        # когда владелец сам прошёл тему руками; NULL = ещё не проверял
+        "checked_at": "DATETIME",
+        "checked_note": "VARCHAR(200)",
     },
     "words": {
         "emoji": "VARCHAR(16)",

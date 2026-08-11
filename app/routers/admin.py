@@ -11,6 +11,7 @@ from ..deps import get_current_admin
 from ..database import get_db
 from ..models import Theme, Word
 from ..tts import synthesize_to_file
+from .lessons import now_utc
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -551,6 +552,32 @@ async def word_image(
     word.image_url = f"/static/image/uploads/{target.name}?v={int(time.time())}"  # cache-bust при перезаписи
     await db.commit()
     return {"word_id": word.id, "image_url": word.image_url}
+
+
+@router.post("/theme_checked/{theme_id}")
+async def theme_checked(
+    theme_id: int,
+    payload: dict = Body(...),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Ручная приёмка темы: владелец прошёл её сам и подтверждает, что смотрел.
+
+    Это не про качество контента, а про «я тут был»: без отметки после сорока
+    юнитов невозможно вспомнить, какие уже отсмотрены глазами, а какие нет.
+    Снимается тем же вызовом с checked=false."""
+    theme = (await db.execute(select(Theme).where(Theme.id == theme_id))).scalar_one_or_none()
+    if not theme:
+        raise HTTPException(status_code=404, detail="Тема не найдена")
+    if payload.get("checked"):
+        theme.checked_at = now_utc()
+        note = (payload.get("note") or "").strip()
+        theme.checked_note = note[:200] or None
+    else:
+        theme.checked_at = None
+        theme.checked_note = None
+    await db.commit()
+    return {"theme_id": theme.id, "checked_at": theme.checked_at, "checked_note": theme.checked_note}
 
 
 @router.post("/word_edit/{word_id}")

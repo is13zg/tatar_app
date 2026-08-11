@@ -1587,20 +1587,20 @@
     screen.innerHTML = '';
     screen.appendChild(el('div', 'instr', 'Послушай историю'));
 
-    // Сначала ТОЛЬКО история: вариантов ответа ещё нет, чтобы ребёнок слушал
-    // текст, а не искал глазами подходящую плитку.
+    // Карточки намеренно мелкие: их четыре, и рядом должен помещаться вопрос
+    // с вариантами. Крупные картинки занимали весь экран и заставляли скроллить.
     const row = el('div', '');
-    row.style.cssText = 'display:flex;gap:10px;justify-content:center;align-items:flex-start;margin:8px 0 14px;';
+    row.style.cssText = 'display:flex;gap:6px;justify-content:center;align-items:flex-start;margin:6px 0 10px;';
     const cards = item.parts.map(p => {
       const c = el('div', '');
-      c.style.cssText = 'flex:1 1 0;max-width:150px;display:grid;justify-items:center;gap:6px;' +
-        'padding:8px;border-radius:18px;border:4px solid transparent;transition:border-color .2s,transform .2s;';
+      c.style.cssText = 'flex:1 1 0;max-width:84px;display:grid;justify-items:center;gap:3px;' +
+        'padding:4px;border-radius:12px;border:3px solid transparent;transition:border-color .2s,transform .2s;';
       const box = el('div', '');
-      box.style.cssText = 'width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;';
+      box.style.cssText = 'width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;overflow:hidden;';
       box.appendChild(visual(p));
       c.appendChild(box);
       const t = el('div', 'word-small', p.text_tt);
-      t.style.cssText = 'font-size:13px;line-height:1.15;';
+      t.style.cssText = 'font-size:11px;line-height:1.1;text-align:center;';
       c.appendChild(t);
       row.appendChild(c);
       return c;
@@ -1616,8 +1616,8 @@
     btns.appendChild(go);
     screen.appendChild(btns);
 
-    // Читаем подряд, подсвечивая ту картинку, о которой идёт речь: так связь
-    // «эта фраза — про этого героя» видна, а не выводится из ниоткуда.
+    // Читаем подряд, подсвечивая ту карточку, о которой идёт речь: связь
+    // «эта фраза — про этого героя» должна быть видна, а не выводиться.
     let telling = false;
     const tell = async () => {
       if (telling) return;
@@ -1626,9 +1626,9 @@
       for (let i = 0; i < item.parts.length; i++) {
         cards.forEach(c => { c.style.borderColor = 'transparent'; c.style.transform = 'none'; });
         cards[i].style.borderColor = 'var(--accent)';
-        cards[i].style.transform = 'scale(1.04)';
+        cards[i].style.transform = 'scale(1.06)';
         await playAudio(item.parts[i].audio_url);
-        await sleep(260);
+        await sleep(240);
       }
       cards.forEach(c => { c.style.borderColor = 'transparent'; c.style.transform = 'none'; });
       telling = false;
@@ -1637,21 +1637,24 @@
     };
     again.onclick = tell;
 
-    go.onclick = async () => {
-      if (telling) return;
-      // История остаётся на экране: задание на понимание, а не на память
-      btns.remove();
-      screen.appendChild(el('div', 'instr', 'Ответь на вопрос'));
+    // Два вопроса подряд про разных героев. Звезда — за оба: одна удача
+    // на четырёх вариантах не должна засчитываться как понимание.
+    let qi = 0, correct = 0;
+    const zone = el('div', '');
+    const askNext = async () => {
+      zone.innerHTML = '';
+      const q = item.questions[qi];
+      const label = el('div', 'instr', 'Вопрос ' + (qi + 1) + ' из ' + item.questions.length);
+      zone.appendChild(label);
       const head = el('div', '');
-      head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:10px;';
+      head.style.cssText = 'display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:8px;';
       const play = el('button', 'play-btn small', '\u{1F50A}');
-      play.onclick = () => playAudio(item.question.audio_url);
+      play.onclick = () => playAudio(q.audio_url);
       head.appendChild(play);
-      head.appendChild(el('div', 'word-big', item.question.text_tt));
-      screen.appendChild(head);
+      head.appendChild(el('div', 'word-big', q.text_tt));
+      zone.appendChild(head);
 
       const grid = el('div', 'tile-grid');
-      grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
       let locked = false;
       item.options.forEach(opt => {
         const cell = el('button', 'tile');
@@ -1659,31 +1662,45 @@
         cell.onclick = async () => {
           if (locked) return;
           locked = true;
-          const ok = opt.id === item.answer_id;
-          reportAnswer(item.word_id, ok, 'story');
+          const ok = opt.id === q.answer_id;
+          if (ok) correct++;
+          reportAnswer(q.answer_id, ok, 'story');
           markTile(cell, ok);
           feedback(ok);
           await playFx(ok);
           if (!ok) {
-            const right = [...grid.children][item.options.findIndex(o => o.id === item.answer_id)];
+            const right = [...grid.children][item.options.findIndex(o => o.id === q.answer_id)];
             if (right) markTile(right, true);
             // переслушиваем предложение про верного героя — вот где был ответ
-            const part = item.parts.find(p => p.word_id === item.answer_id);
+            const part = item.parts.find(p => p.word_id === q.answer_id);
             if (part) await playAudio(part.audio_url);
           }
           await sleep(500);
-          done({ scored: true, ok });
+          qi++;
+          if (qi < item.questions.length) {
+            await askNext();
+          } else {
+            done({ scored: true, ok: correct === item.questions.length });
+          }
         };
         grid.appendChild(cell);
       });
-      screen.appendChild(grid);
-      await playAudio(item.question.audio_url);
+      zone.appendChild(grid);
+      await playAudio(q.audio_url);
+    };
+
+    go.onclick = async () => {
+      if (telling) return;
+      btns.remove();               // история остаётся: это понимание, не память
+      screen.appendChild(zone);
+      await askNext();
     };
 
     await speakRu('Послушай историю');
     await sleep(150);
     tell();
   }
+
 
   async function rNegation(item, screen, done) {
     if (!introSeen('negation')) await showExerciseIntro('negation', screen);

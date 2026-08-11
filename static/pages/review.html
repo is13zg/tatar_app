@@ -58,7 +58,8 @@
           <button id="t-all">✅ Все</button>
           <button id="t-none">⬜ Ничего</button>
         </div>
-        <div id="theme-list"></div>
+        <div id="checked-count" style="font-size:13px;opacity:.7;margin:2px 0 8px;"></div>
+      <div id="theme-list"></div>
       </div>
     </div>
     <input id="search" type="search" placeholder="Поиск: слово или перевод" />
@@ -555,6 +556,7 @@
       const boxes = [];
       themes.forEach(t => {
         const lab = document.createElement('label');
+        lab.style.cssText = 'display:flex;align-items:center;gap:6px;';
         const cb = document.createElement('input');
         cb.type = 'checkbox'; cb.checked = selectedThemes.has(t.id);
         cb.onchange = () => {
@@ -563,9 +565,53 @@
         };
         boxes.push({ cb, id: t.id });
         lab.appendChild(cb);
-        lab.appendChild(document.createTextNode(`${t.icon_emoji || ''} ${t.title_ru}`));
+        const name = document.createElement('span');
+        name.style.flex = '1';
+        name.textContent = `${t.icon_emoji || ''} ${t.title_ru}`;
+        lab.appendChild(name);
+
+        // Приёмка: без неё после сорока юнитов невозможно вспомнить, какие уже
+        // отсмотрены руками. Дата хранится в базе, а не в этом браузере.
+        const mark = document.createElement('button');
+        mark.type = 'button';
+        mark.style.cssText = 'border:none;background:none;cursor:pointer;font-size:18px;padding:2px 4px;';
+        const paint = () => {
+          const on = !!t.checked_at;
+          mark.textContent = on ? '\u2705' : '\u2B1C';
+          mark.title = on
+            ? 'Проверено ' + new Date(t.checked_at).toLocaleDateString('ru-RU') + ' — нажмите, чтобы снять'
+            : 'Отметить, что тему проверили руками';
+          name.style.opacity = on ? '0.55' : '1';
+        };
+        mark.onclick = async (e) => {
+          e.preventDefault(); e.stopPropagation();
+          const want = !t.checked_at;
+          mark.disabled = true;
+          try {
+            const r = await api(`/admin/theme_checked/${t.id}`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ checked: want }),
+            });
+            t.checked_at = r.checked_at;
+            paint();
+            updateCheckedCount();
+          } catch (err) {
+            alert('Не удалось сохранить: ' + err.message);
+          }
+          mark.disabled = false;
+        };
+        paint();
+        lab.appendChild(mark);
         list.appendChild(lab);
       });
+      function updateCheckedCount() {
+        const el = document.getElementById('checked-count');
+        if (!el) return;
+        const n = themes.filter(t => t.checked_at).length;
+        el.textContent = n ? `проверено ${n} из ${themes.length}` : `ни одна тема ещё не проверена`;
+      }
+      updateCheckedCount();
+
       const setAll = on => {
         selectedThemes = new Set(on ? themes.map(t => t.id) : []);
         boxes.forEach(b => { b.cb.checked = on; });

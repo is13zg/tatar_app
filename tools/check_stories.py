@@ -53,7 +53,8 @@ def main() -> None:
         words = []
         for tt_s, _ru, _subj in st["parts"]:
             words += tokens(tt_s)
-        words += tokens(st["question"][0])
+        for q in st["questions"]:
+            words += tokens(q["tt"])
         words = [w for w in words if w and w not in FUNCTION_WORDS]
 
         notes, unit = [], 0
@@ -65,8 +66,13 @@ def main() -> None:
                 unit = max(unit, known[w][0])
 
         subjects = [s for _tt, _ru, s in st["parts"]]
-        if st["answer"] not in subjects:
-            notes.append("ответ не среди подлежащих")
+        answers = [q["answer"] for q in st["questions"]]
+        for a in answers:
+            if a not in subjects:
+                notes.append("ответ не среди подлежащих: " + a)
+                problems += 1
+        if len(set(answers)) < len(answers):
+            notes.append("оба вопроса про одного героя — второй не добавляет нагрузки")
             problems += 1
         kinds, tiles = set(), set()
         for s in subjects:

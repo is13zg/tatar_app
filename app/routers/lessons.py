@@ -1299,12 +1299,12 @@ def ex_why(target: dict, mood_pool: list[dict]) -> Optional[dict]:
 
 
 def ex_story(stories: list[dict], words_by_tt: dict[str, dict]) -> Optional[dict]:
-    """Три предложения подряд и вопрос по их содержанию — единственный формат,
-    где звучит связный текст. Ответить, узнав одно слово, нельзя: все три
-    героя показаны и все три прозвучали, надо удержать, кто что делал.
+    """Четыре предложения подряд и два вопроса по ним — единственный формат,
+    где звучит связный текст. Ответить, узнав одно слово, нельзя: все герои
+    показаны и все прозвучали. Вопросы про РАЗНЫХ героев, поэтому удержать
+    надо весь текст, а не одну фразу.
 
-    Истории и правила к ним — tools/stories.py, озвучка — tools/gen_story_tts.py.
-    Порядок плиток случаен, порядок предложений — нет: это текст, а не набор фраз."""
+    Истории и правила к ним — tools/stories.py, озвучка — tools/gen_story_tts.py."""
     from ..tts import cached_tts_url
     random.shuffle(stories)
     for st in stories:
@@ -1317,18 +1317,24 @@ def ex_story(stories: list[dict], words_by_tt: dict[str, dict]) -> Optional[dict
                 break
             parts.append({"text_tt": tt_s, "text_ru": ru_s, "audio_url": url,
                           "word_id": w["id"], "image_url": w["image_url"], "emoji": w["emoji"]})
-        q_url = cached_tts_url(st["question"][0]) if ok else None
-        answer = words_by_tt.get(st["answer"].lower())
-        if not ok or not q_url or not answer:
+        if not ok:
+            continue
+        questions = []
+        for q in st["questions"]:
+            ans = words_by_tt.get(q["answer"].lower())
+            url = cached_tts_url(q["tt"])
+            if not ans or not url:
+                questions = []
+                break
+            questions.append({"text_tt": q["tt"], "text_ru": q["ru"],
+                              "audio_url": url, "answer_id": ans["id"]})
+        if len(questions) < 2:
             continue
         options = [_brief(words_by_tt[subj.lower()]) for _tt, _ru, subj in st["parts"]]
         random.shuffle(options)
         return {
-            "type": "story", "word_id": answer["id"], "key": st["key"],
-            "parts": parts,
-            "question": {"text_tt": st["question"][0], "text_ru": st["question"][1],
-                         "audio_url": q_url},
-            "options": options, "answer_id": answer["id"],
+            "type": "story", "word_id": questions[0]["answer_id"], "key": st["key"],
+            "parts": parts, "questions": questions, "options": options,
         }
     return None
 

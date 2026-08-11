@@ -30,6 +30,9 @@ class Theme(Base):
     title_tt: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     icon_emoji: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     order_index: Mapped[int] = mapped_column(Integer, default=0)
+    # ручная приёмка: заполняется, когда владелец сам прошёл тему в приложении
+    checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    checked_note: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
     words: Mapped[list["Word"]] = relationship(back_populates="theme", cascade="all, delete-orphan")
 

@@ -100,7 +100,8 @@ async def list_themes(db: Annotated[AsyncSession, Depends(get_db)]):
         sample = (await db.execute(select(Word.image_url).where(Word.theme_id == t.id, Word.image_url.is_not(None)).limit(1))).first()
         results.append(ThemeOut(id=t.id, title_ru=t.title_ru, description=t.description,
                                 sample_image_url=sample[0] if sample else None,
-                                icon_emoji=t.icon_emoji, title_tt=t.title_tt))
+                                icon_emoji=t.icon_emoji, title_tt=t.title_tt,
+                                checked_at=t.checked_at, checked_note=t.checked_note))
     return results
 
 
