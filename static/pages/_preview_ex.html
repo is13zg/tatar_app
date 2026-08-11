@@ -36,7 +36,8 @@
     return;
   }
   window.__item = found;
-  localStorage.setItem('intro_' + type, '1');   // демо пропускаем: смотрим само задание
+  // НЕ трогаем localStorage: раньше просмотр формата гасил демо навсегда,
+  // и ребёнок на этом же планшете больше никогда его не видел
   window.Lesson.RENDERERS[type](found, screen, () => {
     screen.appendChild(window.Lesson.el('div', 'instr', 'Задание завершено'));
   });

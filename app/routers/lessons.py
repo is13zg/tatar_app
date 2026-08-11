@@ -39,6 +39,11 @@ PHRASE_THEMES = {"Привет и пока", "Давай знакомиться"
                  "Кто? Что? Какой?",     # вопросительные слова — то же самое
                  "Вежливые фразы"}       # ситуативные формулы: по картинке не различить
 
+# Темы, где «картинка» слова — условный значок (🔼 у «өстендә»). Картиночные
+# форматы учат тут стрелку вместо слова, а сама стрелка лезет дистрактором к
+# чужим словам, поэтому такие темы работают только сценой и голосом.
+ICON_ONLY_THEMES = {"Кайда? Где что лежит"}
+
 # Дневной лимит НОВЫХ слов = 7 уроков по 4 слова (просьба владельца 2026-07-17;
 # было 10 — методист предупреждал, что очередь повторений растёт лавинообразно).
 NEW_WORDS_DAILY_LIMIT = 7 * NEW_WORDS_PER_LESSON  # 28
@@ -1103,42 +1108,49 @@ def ex_seasons(season_words: list[dict]) -> Optional[dict]:
 
 # Сцена для послелогов: один и тот же кот и одна и та же опора во всех вариантах,
 # различается только положение. Ключ — как фронт ставит фигурку (см. rWhere).
+# У каждого послелога ДВЕ сцены: на кровати и на коробке. Раньше «эчендә» жил
+# на коробке один, дистракторов на той же опоре не набиралось, и слово ни разу
+# не попало в задание (0 из 382). Заодно две опоры дают перенос: тот же
+# послелог на другом предмете.
 PLACE_SCENES = {
-    "өстендә": {"pos": "on", "anchor": "🛏", "anchor_tt": "карават"},
-    "астында": {"pos": "under", "anchor": "🛏", "anchor_tt": "карават"},
-    "эчендә": {"pos": "in", "anchor": "📦", "anchor_tt": "тартма"},
-    "янында": {"pos": "near", "anchor": "🛏", "anchor_tt": "карават"},
-    "артында": {"pos": "behind", "anchor": "🛏", "anchor_tt": "карават"},
-    "алдында": {"pos": "front", "anchor": "🛏", "anchor_tt": "карават"},
+    "өстендә": {"pos": "on", "anchors": ["🛏", "📦"]},
+    "астында": {"pos": "under", "anchors": ["🛏", "📦"]},
+    "эчендә": {"pos": "in", "anchors": ["📦"]},        # в кровати не лежат
+    "янында": {"pos": "near", "anchors": ["🛏", "📦"]},
+    "артында": {"pos": "behind", "anchors": ["🛏", "📦"]},
+    "алдында": {"pos": "front", "anchors": ["🛏", "📦"]},
 }
+ANCHOR_TT = {"🛏": "карават", "📦": "тартма"}
 PLACE_SUBJECT = "🐱"
 
 
 def ex_where(target: dict, place_pool: list[dict]) -> Optional[dict]:
     """«Кайда песи?» — четыре сцены с одним и тем же котом и одной опорой.
     Предмет всюду один, поэтому угадать по картинке нельзя: решает только
-    услышанный послелог. Фраза берётся из кэша TTS (tools/gen_place_tts.py)."""
+    услышанный послелог. Фраза берётся из кэша TTS (tools/gen_hard_tts.py)."""
     from ..tts import cached_tts_url
     tt = target["text_tt"].lower()
     scene = PLACE_SCENES.get(tt)
     if not scene or not target["audio_url"]:
         return None
-    phrase = target.get("sentence_tt") or f"Песи {scene['anchor_tt']} {tt}."
-    url = target.get("sentence_audio_url") or cached_tts_url(phrase)
-    if not url:
+    # опору выбираем из тех, на которых наберётся достаточно дистракторов
+    for anchor in random.sample(scene["anchors"], len(scene["anchors"])):
+        same = [w for w in place_pool
+                if w["id"] != target["id"]
+                and anchor in PLACE_SCENES.get(w["text_tt"].lower(), {}).get("anchors", [])]
+        if len(same) >= 2:
+            break
+    else:
         return None
-    # дистракторы — только те послелоги, что рисуются на той же опоре,
-    # иначе ребёнок отвечает по коробке, а не по слову
-    same = [w for w in place_pool
-            if w["id"] != target["id"]
-            and PLACE_SCENES.get(w["text_tt"].lower(), {}).get("anchor") == scene["anchor"]]
-    if len(same) < 2:
+    phrase = f"Песи {ANCHOR_TT[anchor]} {tt}."
+    url = cached_tts_url(phrase)
+    if not url:
         return None
     options = [target] + random.sample(same, min(3, len(same)))
     random.shuffle(options)
     return {
         "type": "where", "word_id": target["id"], "text_tt": phrase, "audio_url": url,
-        "subject": PLACE_SUBJECT, "anchor": scene["anchor"],
+        "subject": PLACE_SUBJECT, "anchor": anchor,
         "options": [{"id": w["id"], "text_tt": w["text_tt"],
                      "pos": PLACE_SCENES[w["text_tt"].lower()]["pos"]} for w in options],
         "answer_id": target["id"],
@@ -1156,14 +1168,15 @@ def ex_past(target: dict) -> Optional[dict]:
     if not past_tt or not target["audio_url"] or not _has_photo(target):
         return None
     past_audio = cached_tts_url(past_tt)
-    if not past_audio:
-        return None
+    present_audio = cached_tts_url(tt)
+    if not past_audio or not present_audio:
+        return None  # обе формы обязаны быть из ОДНОГО источника, иначе тембр выдаёт ответ
     is_past = random.random() < 0.5
     return {
         "type": "past", "word_id": target["id"],
         "image_url": target["image_url"], "emoji": target["emoji"],
         "text_tt": past_tt if is_past else tt,
-        "audio_url": past_audio if is_past else target["audio_url"],
+        "audio_url": past_audio if is_past else present_audio,
         "answer": "past" if is_past else "present",
         # «сейчас» и «уже» ребёнок слышит по-русски: кнопки без текста, с иконками
         "options": [{"key": "present"}, {"key": "past"}],
@@ -1205,6 +1218,7 @@ def ex_count(target: dict) -> Optional[dict]:
 
 
 MOOD_THEME = "Кәеф ничек? Настроения"
+MOOD_LOOKALIKE = {"шат": {"көлә"}, "көлә": {"шат"}}
 
 # Считаем только то, что реально лежит кучкой и хорошо читается мелко.
 # Каждому нужны предозвученные «Ничә X?» и «ике X … биш X» (tools/gen_count_tts.py).
@@ -1217,9 +1231,9 @@ MOOD_CAUSES = {
     "ач": ("Ул ашамады.", "Он не поел."),
     "сусаган": ("Ул су эчмәде.", "Он не пил воду."),
     "арган": ("Ул йокламады.", "Он не спал."),
-    "шат": ("Дусты килде.", "Друг пришёл."),
-    "моңсу": ("Дусты китте.", "Друг ушёл."),
-    "курка": ("Анда зур эт.", "Там большая собака."),
+    "шат": ("Аның дусты килде.", "Его друг пришёл."),
+    "моңсу": ("Аның дусты китте.", "Его друг ушёл."),
+    "курка": ("Анда зур эт бар.", "Там большая собака."),
 }
 
 
@@ -1234,10 +1248,25 @@ def ex_why(target: dict, mood_pool: list[dict]) -> Optional[dict]:
     url = cached_tts_url(cause[0])
     if not url:
         return None
-    others = [w for w in mood_pool if w["id"] != target["id"] and w["emoji"]]
+    # «шат» 😀 и «көлә» 😄 для дошкольника одно и то же — не даём их друг другу
+    # в дистракторы; заодно требуем непохожий эмодзи, как это делает pick_image
+    blocked = MOOD_LOOKALIKE.get(tt, set()) | {target["emoji"]}
+    others = [w for w in mood_pool
+              if w["id"] != target["id"] and w["emoji"]
+              and w["text_tt"].lower() not in blocked and w["emoji"] not in blocked]
     if len(others) < 2:
         return None
-    options = [target] + random.sample(others, min(3, len(others)))
+    options = [target]
+    for cand in random.sample(others, len(others)):
+        if len(options) == 4:
+            break
+        # пара «шат/көлә» не должна встретиться и между двумя дистракторами
+        if any(cand["text_tt"].lower() in MOOD_LOOKALIKE.get(o["text_tt"].lower(), set())
+               or cand["emoji"] == o["emoji"] for o in options):
+            continue
+        options.append(cand)
+    if len(options) < 3:
+        return None
     random.shuffle(options)
     return {
         "type": "why", "word_id": target["id"],
@@ -1322,6 +1351,8 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                     sort_words: Optional[dict] = None,
                     clothes_pool: Optional[list[dict]] = None,
                     season_pool: Optional[list[dict]] = None,
+                    icon_only: bool = False,
+                    icon_only_ids: Optional[set] = None,
                     place_pool: Optional[list[dict]] = None,
                     past_pool: Optional[list[dict]] = None,
                     count_pool: Optional[list[dict]] = None,
@@ -1330,8 +1361,29 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
     phrase_mode: тема из фраз — только карточки, звучание и повторение за диктором.
     allow_build: «собери слово» — только с 3-го урока юнита (для начала это слишком сложно)."""
     items: list[dict] = []
+    icon_only_ids = icon_only_ids or set()
 
-    if phrase_mode:
+    if icon_only:
+        # Тема, где «картинка» слова — условный значок (🔼 у «өстендә»). Картиночные
+        # форматы тут учат стрелку вместо послелога, поэтому их нет совсем:
+        # подача — карточка, отработка — сцена «кот и кровать» и голос.
+        for w in new_words:
+            items.append(ex_card(w))
+            e = ex_where(w, place_pool or []) if place_pool else None
+            if e:
+                items.append(e)
+        practice = []
+        for w in new_words:
+            e = ex_where(w, place_pool or []) if place_pool else None
+            if e:
+                practice.append(e)
+            e = ex_pick_word_audio(w, pool)
+            if e:
+                practice.append(e)
+        for w in new_words:
+            if w["audio_url"]:
+                practice.append(ex_repeat_after(w))
+    elif phrase_mode:
         for w in new_words:
             items.append(ex_card(w))
         practice: list[dict] = []
@@ -1491,6 +1543,9 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             e = ex_pick_word_audio(w, pool + review_words)
             if not e and w["audio_url"]:
                 e = ex_repeat_after(w)
+        elif icon_only or w.get("theme_id") in icon_only_ids:
+            # значок-стрелка в чужом задании — конкурирующая ассоциация, только звук
+            e = ex_pick_word_audio(w, pool + review_words) or (ex_repeat_after(w) if w["audio_url"] else None)
         else:
             e = ex_pick_image(w, pool + review_words) or ex_yes_no(w, pool + review_words)
         if e:
@@ -1699,8 +1754,14 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         random.shuffle(sample)
         sample = sample[:BOSS_QUESTIONS]
         items: list[dict] = []
+        icon_only_boss = theme.title_ru in ICON_ONLY_THEMES
+        boss_place_pool = await place_words(db, None) if icon_only_boss else []
         for i, w in enumerate(sample):
-            if phrase_mode:
+            if icon_only_boss:
+                # финальная проверка юнита про послелоги обязана спрашивать, ГДЕ кошка,
+                # а не какой значок приклеен к слову
+                e = ex_where(w, boss_place_pool) or ex_pick_word_audio(w, pool)
+            elif phrase_mode:
                 e = ex_pick_word_audio(w, pool)
             else:
                 kind = i % 4
@@ -1719,7 +1780,9 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                     e = ex_build_sentence(w, pool) or ex_build_word(w) or ex_pick_image(w, pool)
             if e:
                 items.append(e)
-        if not phrase_mode:
+        if not phrase_mode and not icon_only_boss:
+            # у темы-значков картиночные добавки тоже отменяются: memory на стрелках
+            # это игра «найди пару одинаковых треугольников», к послелогам отношения нет
             m = ex_memory(pool)
             if m:
                 items.append(m)
@@ -1747,12 +1810,14 @@ async def unit_lesson(theme_id: int, lesson_no: int,
             review = review[:2] + mistake_words
 
         sort_payload = None
-        if not phrase_mode and theme.title_ru not in SORT_EXCLUDED_THEMES:
+        icon_only_theme = theme.title_ru in ICON_ONLY_THEMES
+        if not phrase_mode and not icon_only_theme and theme.title_ru not in SORT_EXCLUDED_THEMES:
             units = await get_ordered_units(db)
             prev_units = [
                 u for u in units
                 if u.order_index < theme.order_index
                 and u.title_ru not in PHRASE_THEMES
+                and u.title_ru not in ICON_ONLY_THEMES
                 and frozenset({u.title_ru, theme.title_ru}) not in SORT_INCOMPATIBLE
                 and u.title_ru not in SORT_EXCLUDED_THEMES
             ]
@@ -1767,8 +1832,11 @@ async def unit_lesson(theme_id: int, lesson_no: int,
 
         # бонусные форматы — только на словах уже пройденных юнитов
         learned = await learned_theme_ids(db, theme.order_index)
+        icon_only_ids = {t.id for t in await get_ordered_units(db) if t.title_ru in ICON_ONLY_THEMES}
         items = build_exercises(new_words, pool, review, sort_payload,
                                 phrase_mode=phrase_mode, allow_build=lesson_no >= 3,
+                                icon_only=theme.title_ru in ICON_ONLY_THEMES,
+                                icon_only_ids=icon_only_ids,
                                 sentences_ok=lesson_no >= 2,
                                 late_unit=(theme.order_index or 0) >= 14,
                                 feed_ok=theme.title_ru in EDIBLE_THEMES,
@@ -1849,9 +1917,17 @@ async def mood_words(db: AsyncSession, allowed: Optional[set] = None) -> list[di
     return [word_dto(w) for w in rows if (w.audio_url or w.tts_url)]
 
 
+NUMBERS_THEME = "Цифры"
+
+
 async def count_words(db: AsyncSession, allowed: Optional[set] = None) -> list[dict]:
-    """Предметы, для которых предозвучены связки «ике алма … биш алма»."""
+    """Предметы, для которых предозвучены связки «ике алма … биш алма».
+    Пока не пройдены сами числительные, формат молчит: иначе ребёнок впервые
+    слышит «өч» в задании, где надо выбрать между тремя незнакомыми словами."""
     from ..tts import cached_tts_url
+    numbers = (await db.execute(select(Theme).where(Theme.title_ru == NUMBERS_THEME))).scalar_one_or_none()
+    if not numbers or (allowed is not None and numbers.id not in allowed):
+        return []
     rows = (await db.execute(select(Word).where(
         func.lower(Word.text_tt).in_(list(COUNTABLE_TT))))).scalars().all()
     out = []

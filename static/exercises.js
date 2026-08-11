@@ -52,6 +52,10 @@
     'Чем это делают?': 'chem_delayut',
     'Один или много?': 'odin_ili_mnogo',
     'Одень Марата по погоде!': 'oden_marata',
+    'Где кошка?': 'gde_koshka',
+    'Сейчас или уже?': 'seychas_ili_uzhe',
+    'Сколько предметов?': 'skolko_predmetov',
+    'Почему? Выбери, какой он': 'pochemu_kakoy',
     'Посвети! Кто прячется в темноте?': 'posveti_fonarikom',
     'Повтори цепочку!': 'povtori_cepochku',
     'Послушай и найди картинку': 'najdi_kartinku',
@@ -253,18 +257,18 @@
         wrap.appendChild(el('div', 'instr', 'Игра «Где кошка?»'));
         const row = el('div', '');
         row.style.cssText = 'display:flex;gap:22px;align-items:flex-end;';
-        [['\u{1F431}\u{1F6CF}', 'өстендә'], ['\u{1F6CF}\u{1F431}', 'астында']].forEach(pair => {
+        // те же самые сцены, что и в задании: раньше интро учило горизонтали,
+        // а упражнение спрашивало про вертикаль
+        [['on', 'өстендә'], ['under', 'астында']].forEach(pair => {
           const c = el('div', '');
-          c.style.cssText = 'display:grid;justify-items:center;gap:4px;';
-          const e = el('div', '', pair[0]);
-          e.style.fontSize = '46px';
-          c.appendChild(e);
+          c.style.cssText = 'display:grid;justify-items:center;gap:4px;width:120px;';
+          c.appendChild(placeScene({ anchor: '\u{1F6CF}', subject: '\u{1F431}' }, pair[0]));
           c.appendChild(el('div', 'word-small', pair[1]));
           row.appendChild(c);
         });
         wrap.appendChild(row);
         wrap.appendChild(el('div', 'word-small', 'Кошка везде одна — слушай, ГДЕ она!'));
-        speakRuBrowser('Кошка на всех картинках одинаковая. Слушай внимательно, где она: сверху, снизу или рядом.');
+        speakRuBrowser('Кошка на всех картинках одинаковая. Слушай внимательно, где она: сверху, снизу, рядом, за кроватью или перед ней.');
       } else if (type === 'past') {
         wrap.appendChild(el('div', 'instr', 'Игра «Сейчас или уже?»'));
         const row = el('div', '');
@@ -1287,32 +1291,41 @@
 
   // Кот и опора одни и те же во всех вариантах — различается только положение,
   // поэтому сцену рисуем CSS-ом, а не картинкой.
-  // Позиции разведены и по вертикали, и по слою: «под» и «перед» в первой
-  // версии встали почти в одну точку и на глаз не различались. Теперь у каждой
-  // свой центр (шаг ~20% высоты плитки), а «за» уходит ПОД опору (z-index 0),
-  // «перед» — НАД ней и крупнее. Опора всегда z-index 1.
+  // Позиции заданы в ПРОЦЕНТАХ плитки, а не в пикселях: плитка тянется сеткой,
+  // и хардкод 108px обрезал кошку нижней кромкой (у «астында» срезало 28%).
+  // Соседние позиции разведены на 24% высоты — это примерно рост самой кошки.
+  // «Артында» больше не полупрозрачная (opacity в приложении уже значит
+  // «вариант отключён»), её закрывает второй, обрезанный экземпляр опоры.
   const PLACE_CSS = {
-    on:     'left:50%;top:8%;transform:translate(-50%,-50%);z-index:2;',
-    behind: 'left:50%;top:30%;transform:translate(-50%,-50%) scale(.72);opacity:.5;z-index:0;',
-    in:     'left:50%;top:52%;transform:translate(-50%,-50%) scale(.5);z-index:2;',
-    front:  'left:50%;top:66%;transform:translate(-50%,-50%) scale(1.2);z-index:3;',
-    under:  'left:50%;top:100%;transform:translate(-50%,-50%);z-index:2;',
-    near:   'left:90%;top:52%;transform:translate(-50%,-50%);z-index:2;',
+    on:     'left:50%;top:14%;transform:translate(-50%,-50%);z-index:1;',
+    behind: 'left:50%;top:38%;transform:translate(-50%,-50%) scale(.86);z-index:1;',
+    in:     'left:50%;top:52%;transform:translate(-50%,-50%) scale(.55);z-index:3;',
+    front:  'left:50%;top:62%;transform:translate(-50%,-50%) scale(1.15);z-index:3;',
+    under:  'left:50%;top:86%;transform:translate(-50%,-50%);z-index:1;',
+    near:   'left:80%;top:52%;transform:translate(-50%,-50%);z-index:3;',
   };
 
-  function placeScene(item, pos, size) {
+  function placeScene(item, pos) {
+    // Опора рисуется ДВАЖДЫ: нижний слой целиком, верхний обрезан по низу.
+    // Кошка лежит между ними, поэтому в позиции «артында» её реально закрывает
+    // кровать, а не имитирует бледность (эмодзи-глиф сам ничего не перекрывает).
     const box = el('div', '');
-    box.style.cssText = 'position:relative;width:' + size + 'px;height:' + size +
-      'px;display:flex;align-items:center;justify-content:center;overflow:visible;';
-    const anchor = el('div', '', item.anchor);
-    anchor.style.cssText = 'font-size:' + Math.round(size * 0.56) + 'px;line-height:1;position:relative;z-index:1;';
-    box.appendChild(anchor);
+    box.style.cssText = 'position:relative;width:100%;aspect-ratio:1;';
+    const anchorCss = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
+      'font-size:52%;line-height:1;';
+    const back = el('div', '', item.anchor);
+    back.style.cssText = anchorCss + 'z-index:0;';
+    box.appendChild(back);
     const subj = el('div', '', item.subject);
-    subj.style.cssText = 'position:absolute;font-size:' + Math.round(size * 0.34) +
-      'px;line-height:1;' + (PLACE_CSS[pos] || PLACE_CSS.near);
+    subj.style.cssText = 'position:absolute;font-size:24%;line-height:1;' +
+      (PLACE_CSS[pos] || PLACE_CSS.near);
     box.appendChild(subj);
+    const front = el('div', '', item.anchor);
+    front.style.cssText = anchorCss + 'z-index:2;clip-path:inset(42% 0 0 0);';
+    box.appendChild(front);
     return box;
   }
+
 
   async function rWhere(item, screen, done) {
     if (!introSeen('where')) await showExerciseIntro('where', screen);
@@ -1324,22 +1337,22 @@
     play.onclick = () => playAudio(item.audio_url);
     head.appendChild(play);
     screen.appendChild(head);
-    const grid = el('div', 'grid-4');
+    const grid = el('div', 'tile-grid');
     let locked = false;
     item.options.forEach(opt => {
       const cell = el('button', 'tile');
-      cell.appendChild(placeScene(item, opt.pos, 108));
+      cell.appendChild(placeScene(item, opt.pos));
       cell.onclick = async () => {
         if (locked) return;
         locked = true;
         const ok = opt.id === item.answer_id;
         reportAnswer(item.word_id, ok, 'where');
-        cell.classList.add(ok ? 'right' : 'wrong');
+        cell.classList.add(ok ? 'good' : 'bad');
         feedback(ok);
         await playFx(ok);
         if (!ok) {
           const right = [...grid.children][item.options.findIndex(o => o.id === item.answer_id)];
-          if (right) right.classList.add('right');
+          if (right) right.classList.add('good');
           await playAudio(item.audio_url);
         }
         await sleep(500);
@@ -1367,10 +1380,11 @@
     screen.appendChild(vis);
     const row = el('div', 'yn-row');
     let locked = false;
-    const buttons = [['present', '\u25B6\uFE0F', 'Делает сейчас'], ['past', '\u2705', 'Уже сделал']];
+    const buttons = [['present', '\u23F3', 'Делает сейчас'], ['past', '\u{1F3C1}', 'Уже сделал']];
     buttons.forEach(pair => {
       const key = pair[0], icon = pair[1], ru = pair[2];
-      const b = el('button', 'kid-btn ' + (key === 'past' ? '' : 'secondary'), icon);
+      // обе кнопки одного веса: оранжевая primary читалась как «этот ответ главный»
+      const b = el('button', 'kid-btn secondary', icon);
       b.style.cssText = 'min-width:130px;font-size:34px;';
       b.title = ru;
       b.onclick = async () => {
@@ -1406,10 +1420,13 @@
     screen.appendChild(head);
     // N одинаковых предметов: считать надо их, картинка у всех одна и та же
     const heap = el('div', '');
-    heap.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:10px 0;';
+    // без nowrap пять предметов на 320px разваливались на 3+2, а считать
+    // «вразбежку» дошкольнику заметно труднее, чем ряд
+    heap.style.cssText = 'display:flex;gap:8px;flex-wrap:nowrap;justify-content:center;margin:10px 0;';
     for (let i = 0; i < item.n; i++) {
       const one = el('div', '');
-      one.style.cssText = 'width:72px;height:72px;display:flex;align-items:center;justify-content:center;';
+      one.style.cssText = 'width:min(72px, calc((100% - 40px) / ' + item.n + '));aspect-ratio:1;' +
+        'flex:0 0 auto;display:flex;align-items:center;justify-content:center;';
       if (item.image_url) {
         const im = document.createElement('img');
         im.src = item.image_url;
@@ -1424,14 +1441,14 @@
     }
     screen.appendChild(heap);
     const row = el('div', '');
-    row.style.cssText = 'display:flex;gap:12px;justify-content:center;flex-wrap:wrap;';
+    row.style.cssText = 'display:flex;gap:12px;justify-content:center;flex-wrap:nowrap;width:100%;';
     let locked = false, picked = null;
     const check = el('button', 'kid-btn', '\u2714 Готово');
     check.style.marginTop = '12px';
     check.disabled = true;
     item.options.forEach(opt => {
       const b = el('button', 'kid-btn secondary', '\u{1F50A}');
-      b.style.cssText = 'min-width:110px;font-size:26px;';
+      b.style.cssText = 'flex:1 1 0;width:auto;min-width:80px;font-size:26px;';
       b.onclick = () => {
         if (locked) return;
         playAudio(opt.audio_url);          // сначала слушаем связку «число + предмет»
@@ -1469,7 +1486,7 @@
     play.onclick = () => playAudio(item.audio_url);
     head.appendChild(play);
     screen.appendChild(head);
-    const grid = el('div', 'grid-4');
+    const grid = el('div', 'tile-grid');
     let locked = false;
     item.options.forEach(opt => {
       const cell = el('button', 'tile');
@@ -1479,12 +1496,12 @@
         locked = true;
         const ok = opt.id === item.answer_id;
         reportAnswer(item.word_id, ok, 'why');
-        cell.classList.add(ok ? 'right' : 'wrong');
+        cell.classList.add(ok ? 'good' : 'bad');
         feedback(ok);
         await playFx(ok);
         if (!ok) {
           const right = [...grid.children][item.options.findIndex(o => o.id === item.answer_id)];
-          if (right) right.classList.add('right');
+          if (right) right.classList.add('good');
         }
         await sleep(500);
         done({ scored: true, ok });
@@ -1492,7 +1509,10 @@
       grid.appendChild(cell);
     });
     screen.appendChild(grid);
-    speakThenPlay('Почему? Выбери, какой он', item.audio_url);
+    // сначала по-русски, что случилось, потом та же фраза по-татарски:
+    // половина причин построена на отрицании, без подводки они понимаются наоборот
+    speakThenPlay(item.text_ru ? 'Слушай: ' + item.text_ru + ' Какой он?' : 'Почему? Выбери, какой он',
+                  item.audio_url);
   }
 
   async function rNegation(item, screen, done) {

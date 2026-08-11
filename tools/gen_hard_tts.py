@@ -18,8 +18,8 @@ import sys
 sys.path.insert(0, os.getcwd())
 
 from app.forms import PAST_TT  # noqa: E402
-from app.routers.lessons import (COUNT_MAX, COUNTABLE_TT, MOOD_CAUSES,  # noqa: E402
-                                 NUMERALS_TT, PLACE_SCENES)
+from app.routers.lessons import (ANCHOR_TT, COUNT_MAX, COUNTABLE_TT,  # noqa: E402
+                                 MOOD_CAUSES, NUMERALS_TT, PLACE_SCENES)
 from app.tts import cached_tts_url, synthesize_to_file  # noqa: E402
 
 
@@ -28,10 +28,11 @@ def collect(db: str) -> list[str]:
     have = {r[0].lower() for r in con.execute("select text_tt from words")}
     phrases: list[str] = []
 
-    # послелоги: фразу берём из базы, если она там уже есть (владелец мог править)
+    # послелоги: у каждого своя фраза НА КАЖДОЙ опоре — «Песи карават астында.»
+    # и «Песи тартма астында.»; движок берёт их только из кэша
     for tt, scene in PLACE_SCENES.items():
-        row = con.execute("select sentence_tt from words where lower(text_tt)=?", (tt,)).fetchone()
-        phrases.append((row[0] if row and row[0] else f"Песи {scene['anchor_tt']} {tt}."))
+        for anchor in scene["anchors"]:
+            phrases.append(f"Песи {ANCHOR_TT[anchor]} {tt}.")
 
     phrases += [past for verb, past in PAST_TT.items() if verb in have]
 
