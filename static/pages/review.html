@@ -580,12 +580,12 @@
           'padding:3px 7px;border-radius:999px;transition:background .15s,filter .15s;';
         const paint = () => {
           const on = !!t.checked_at;
-          mark.textContent = on ? '\u{1F600}' : '\u{1F615}';
-          mark.style.background = on ? 'rgba(22,163,74,.14)' : 'rgba(0,0,0,.05)';
-          mark.style.filter = on ? 'none' : 'grayscale(1) opacity(.5)';
+          mark.textContent = on ? '\u{1F44C}' : '\u{1F440}';
+          mark.style.background = on ? 'rgba(22,163,74,.14)' : 'rgba(234,88,12,.12)';
+          mark.style.filter = 'none';
           mark.title = on
             ? 'Проверено ' + new Date(t.checked_at).toLocaleDateString('ru-RU') + ' — нажмите, чтобы снять'
-            : 'Ещё не проверяли — нажмите, когда пройдёте тему руками';
+            : 'Нужно посмотреть — нажмите, когда пройдёте тему руками';
           name.style.opacity = on ? '0.55' : '1';
         };
         mark.onclick = async (e) => {
