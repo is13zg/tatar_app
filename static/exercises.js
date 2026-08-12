@@ -1404,7 +1404,14 @@
     let locked = false;
     item.options.forEach(opt => {
       const cell = el('button', 'tile');
-      cell.appendChild(placeScene(item, opt.pos));
+      // своя картинка ситуации, если владелец её загрузил; иначе рисуем сцену
+      if (item.drawn && opt.image_url) {
+        const im = document.createElement('img');
+        im.src = opt.image_url; im.alt = '';
+        cell.appendChild(im);
+      } else {
+        cell.appendChild(placeScene(item, opt.pos));
+      }
       cell.onclick = async () => {
         if (locked) return;
         locked = true;

@@ -158,3 +158,18 @@ class UserMistake(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "word_id", name="uq_user_word_mistake"),
     )
+
+
+class PhraseImage(Base):
+    """Картинка, привязанная к точной татарской фразе.
+
+    Ключ — сама строка, как в кэше озвучки: фраза живёт в tools/stories.py и в
+    PLACE_SCENES, у неё нет своего id в базе, а картинка нужна именно на
+    ситуацию («кот РЯДОМ с кроватью» против «кот ПОД кроватью»)."""
+
+    __tablename__ = "phrase_images"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    phrase: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    image_url: Mapped[str] = mapped_column(String(255))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

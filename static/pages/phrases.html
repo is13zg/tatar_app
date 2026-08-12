@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Картинки к фразам — TT-Learn Kids</title>
+  <link rel="stylesheet" href="/static/kid.css?v=20260812c">
+  <style>
+    body { padding: 16px; }
+    .wrap { max-width: 980px; margin: 0 auto; }
+    .grp { margin: 18px 0 6px; font-weight: 800; opacity: .75; font-size: 14px; }
+    .row { display: flex; gap: 12px; align-items: center; padding: 8px;
+           border: 2px solid #e5e7eb; border-radius: 14px; margin-bottom: 8px; background: #fff; }
+    .thumb { width: 84px; height: 84px; flex: 0 0 84px; border-radius: 10px; overflow: hidden;
+             display: flex; align-items: center; justify-content: center; background: #f4f4f5; }
+    .thumb img { max-width: 100%; max-height: 100%; }
+    .txt { flex: 1; min-width: 0; }
+    .tt { font-weight: 800; }
+    .ru { font-size: 13px; opacity: .65; }
+    .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+    .acts button, .acts label { font-size: 14px; padding: 6px 10px; border-radius: 999px;
+                                border: 2px solid #e5e7eb; background: #fff; cursor: pointer; }
+    .none { font-size: 26px; opacity: .35; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h2>🖼 Картинки к фразам</h2>
+  <p style="font-size:14px;opacity:.75;max-width:640px;">
+    Здесь картинка привязана к <b>ситуации</b>, а не к слову: «Песи карават янында»
+    и «Песи карават астында» — один и тот же кот и одна и та же кровать, различается
+    только положение. Пока картинки нет, задание рисует сцену из эмодзи (послелоги)
+    или показывает фото героя (истории).
+  </p>
+  <p style="font-size:13px;opacity:.6;">
+    В упражнении «Где кошка?» свои картинки включаются только тогда, когда загружены
+    <b>все четыре</b> варианта на одну опору — иначе одна фотография среди трёх
+    нарисованных сцен сама выдаёт ответ.
+  </p>
+  <div id="stat" style="font-size:14px;margin:10px 0;"></div>
+  <div id="list"></div>
+</div>
+<script>
+(async () => {
+  const token = localStorage.getItem('token');
+  const list = document.getElementById('list');
+  if (!token) {
+    list.innerHTML = '<p>Сначала <a href="/static/pages/login.html?next=' +
+      encodeURIComponent(location.pathname) + '">войдите</a>.</p>';
+    return;
+  }
+  const api = async (url, opts = {}) => {
+    const r = await fetch(url, { ...opts, headers: { Authorization: 'Bearer ' + token, ...(opts.headers || {}) } });
+    if (!r.ok) throw new Error((await r.text()).slice(0, 200));
+    return r.status === 204 ? null : r.json();
+  };
+
+  let slots = [];
+  const stat = () => {
+    const n = slots.filter(s => s.image_url).length;
+    document.getElementById('stat').textContent =
+      `Загружено ${n} из ${slots.length} фраз`;
+  };
+
+  const render = () => {
+    list.innerHTML = '';
+    let group = null;
+    slots.forEach(sl => {
+      if (sl.group !== group) {
+        group = sl.group;
+        const g = document.createElement('div');
+        g.className = 'grp';
+        g.textContent = group;
+        list.appendChild(g);
+      }
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const thumb = document.createElement('div');
+      thumb.className = 'thumb';
+      if (sl.image_url) {
+        const im = document.createElement('img');
+        im.src = sl.image_url; im.alt = '';
+        thumb.appendChild(im);
+      } else {
+        thumb.innerHTML = '<span class="none">🖼</span>';
+      }
+      row.appendChild(thumb);
+
+      const txt = document.createElement('div');
+      txt.className = 'txt';
+      txt.innerHTML = '<div class="tt"></div><div class="ru"></div>';
+      txt.querySelector('.tt').textContent = sl.phrase;
+      txt.querySelector('.ru').textContent = sl.hint || '';
+      row.appendChild(txt);
+
+      const acts = document.createElement('div');
+      acts.className = 'acts';
+      const lab = document.createElement('label');
+      lab.textContent = sl.image_url ? '🔁 Заменить' : '⬆️ Загрузить';
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+      inp.onchange = async () => {
+        if (!inp.files[0]) return;
+        lab.textContent = '…';
+        try {
+          const fd = new FormData();
+          fd.append('phrase', sl.phrase);
+          fd.append('file', inp.files[0]);
+          const res = await api('/admin/phrase_image', { method: 'POST', body: fd });
+          sl.image_url = res.image_url;
+          render(); stat();
+        } catch (e) {
+          alert('Не удалось загрузить: ' + e.message);
+          lab.textContent = '⬆️ Загрузить';
+        }
+      };
+      lab.appendChild(inp);
+      acts.appendChild(lab);
+
+      if (sl.image_url) {
+        const del = document.createElement('button');
+        del.textContent = '🗑 Убрать';
+        del.onclick = async () => {
+          if (!confirm('Убрать картинку у фразы «' + sl.phrase + '»?')) return;
+          await api('/admin/phrase_image?phrase=' + encodeURIComponent(sl.phrase), { method: 'DELETE' });
+          sl.image_url = null;
+          render(); stat();
+        };
+        acts.appendChild(del);
+      }
+      row.appendChild(acts);
+      list.appendChild(row);
+    });
+  };
+
+  try {
+    slots = await api('/admin/phrase_images');
+    render(); stat();
+  } catch (e) {
+    list.innerHTML = '<p>Не удалось загрузить список: ' + e.message + '</p>';
+  }
+})();
+</script>
+</body>
+</html>

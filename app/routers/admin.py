@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..deps import get_current_admin
 from ..database import get_db
-from ..models import Theme, Word
+from ..models import PhraseImage, Theme, Word
 from ..tts import synthesize_to_file
 from .lessons import now_utc
 
@@ -552,6 +552,96 @@ async def word_image(
     word.image_url = f"/static/image/uploads/{target.name}?v={int(time.time())}"  # cache-bust при перезаписи
     await db.commit()
     return {"word_id": word.id, "image_url": word.image_url}
+
+
+@router.get("/phrase_images")
+async def phrase_images(db: Annotated[AsyncSession, Depends(get_db)] = None,
+                        admin = Depends(get_current_admin)):
+    """Все фразы, которым МОЖНО дать картинку, и то, что уже загружено.
+
+    Список собирается из кода (сцены послелогов и мини-истории), а не из базы:
+    это единственное место, где фразы вообще перечислены."""
+    from ..routers.lessons import ANCHOR_TT, PLACE_SCENES
+    from tools.stories import STORIES
+
+    slots: list[dict] = []
+    for tt, scene in PLACE_SCENES.items():
+        for anchor in scene["anchors"]:
+            slots.append({"phrase": f"Песи {ANCHOR_TT[anchor]} {tt}.",
+                          "group": "Где что лежит", "hint": tt})
+    for st in STORIES:
+        for tt_s, ru_s, _subj in st["parts"]:
+            slots.append({"phrase": tt_s, "group": "История: " + st["key"], "hint": ru_s})
+
+    rows = (await db.execute(select(PhraseImage))).scalars().all()
+    have = {r.phrase: r.image_url for r in rows}
+    seen, out = set(), []
+    for sl in slots:
+        if sl["phrase"] in seen:
+            continue
+        seen.add(sl["phrase"])
+        out.append({**sl, "image_url": have.get(sl["phrase"])})
+    return out
+
+
+@router.post("/phrase_image")
+async def set_phrase_image(
+    phrase: str = Form(...),
+    file: UploadFile = File(...),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    admin = Depends(get_current_admin),
+):
+    """Загрузка картинки на фразу. Имя файла — от хэша фразы: строка бывает
+    длинной и с татарскими буквами, в имени файла ей делать нечего."""
+    import hashlib
+
+    phrase = (phrase or "").strip()
+    if not phrase:
+        raise HTTPException(status_code=400, detail="Пустая фраза")
+    ext = (file.filename or "img.png").rsplit(".", 1)[-1].lower()
+    if ext not in ("png", "jpg", "jpeg", "webp", "svg"):
+        raise HTTPException(status_code=400, detail="Ожидается изображение (png/jpg/webp/svg)")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Пустой файл")
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Файл больше 10 МБ")
+    if ext != "svg":
+        from ..media import optimize_image
+        opt = optimize_image(data)
+        if opt:
+            data = opt
+        ext = "png"
+
+    from pathlib import Path
+    from ..config import STATIC_DIR
+    target_dir = Path(STATIC_DIR) / "image" / "phrases"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    name = "p_" + hashlib.md5(phrase.encode("utf-8")).hexdigest()[:12] + "." + ext
+    (target_dir / name).write_bytes(data)
+    url = f"/static/image/phrases/{name}?v={int(time.time())}"
+
+    row = (await db.execute(select(PhraseImage).where(PhraseImage.phrase == phrase))).scalar_one_or_none()
+    if row:
+        row.image_url = url
+        row.updated_at = now_utc()
+    else:
+        db.add(PhraseImage(phrase=phrase, image_url=url, updated_at=now_utc()))
+    await db.commit()
+    return {"phrase": phrase, "image_url": url}
+
+
+@router.delete("/phrase_image")
+async def delete_phrase_image(phrase: str,
+                              db: Annotated[AsyncSession, Depends(get_db)] = None,
+                              admin = Depends(get_current_admin)):
+    """Снять картинку — задание вернётся к прежнему виду (сцена из эмодзи
+    у послелогов, фото подлежащего в истории)."""
+    row = (await db.execute(select(PhraseImage).where(PhraseImage.phrase == phrase))).scalar_one_or_none()
+    if row:
+        await db.delete(row)
+        await db.commit()
+    return {"phrase": phrase, "image_url": None}
 
 
 @router.post("/theme_checked/{theme_id}")
