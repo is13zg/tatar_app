@@ -572,15 +572,20 @@
 
         // Приёмка: без неё после сорока юнитов невозможно вспомнить, какие уже
         // отсмотрены руками. Дата хранится в базе, а не в этом браузере.
+        // Лицо, а не галочка: квадратная отметка рядом с квадратным чекбоксом
+        // выбора темы читалась как второй такой же контрол.
         const mark = document.createElement('button');
         mark.type = 'button';
-        mark.style.cssText = 'border:none;background:none;cursor:pointer;font-size:18px;padding:2px 4px;';
+        mark.style.cssText = 'border:none;cursor:pointer;font-size:20px;line-height:1;' +
+          'padding:3px 7px;border-radius:999px;transition:background .15s,filter .15s;';
         const paint = () => {
           const on = !!t.checked_at;
-          mark.textContent = on ? '\u2705' : '\u2B1C';
+          mark.textContent = on ? '\u{1F600}' : '\u{1F615}';
+          mark.style.background = on ? 'rgba(22,163,74,.14)' : 'rgba(0,0,0,.05)';
+          mark.style.filter = on ? 'none' : 'grayscale(1) opacity(.5)';
           mark.title = on
             ? 'Проверено ' + new Date(t.checked_at).toLocaleDateString('ru-RU') + ' — нажмите, чтобы снять'
-            : 'Отметить, что тему проверили руками';
+            : 'Ещё не проверяли — нажмите, когда пройдёте тему руками';
           name.style.opacity = on ? '0.55' : '1';
         };
         mark.onclick = async (e) => {
