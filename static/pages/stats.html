@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Для родителей — TT-Learn Kids</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦊</text></svg>" />
-  <link rel="stylesheet" href="/static/kid.css?v=20260812b" />
+  <link rel="stylesheet" href="/static/kid.css?v=20260812c" />
   <style>
     .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .stat {
@@ -57,7 +57,11 @@
 
     <div class="kid-card">
       <div class="section-title">📚 Прогресс по темам</div>
-      <div id="themes"></div>
+      <h3 style="margin:22px 0 6px;">🗓 История занятий</h3>
+  <div id="history-sum" style="font-size:14px;opacity:.7;margin-bottom:8px;"></div>
+  <div id="history"></div>
+
+  <div id="themes"></div>
     </div>
 
     <div class="kid-card">
@@ -139,6 +143,47 @@
       grid.appendChild(statTile('📚', `${doneUnits}/${p.units.length}`, 'юнитов пройдено'));
       document.getElementById('stickers').textContent = (h.stickers || []).join(' ');
       document.getElementById('daily').textContent = h.daily_done ? '✅ Задание дня выполнено' : '⬜ Задание дня ещё не сделано';
+
+      // Журнал занятий: родителю нужно видеть день, время и длительность —
+      // из звёзд и стрика этого не собрать, они не помнят, КОГДА было занятие.
+      try {
+        const hist = await api('/lesson/history');
+        const box = document.getElementById('history');
+        const fmt = sec => sec >= 60 ? Math.round(sec / 60) + ' мин' : sec + ' сек';
+        const sum = document.getElementById('history-sum');
+        sum.textContent = hist.days.length
+          ? `Всего ${hist.total_sessions} занятий, ${fmt(hist.total_seconds)} за ${hist.days.length} дн.`
+          : 'Занятий пока не было';
+        const today = new Date();
+        hist.days.forEach(d => {
+          const day = document.createElement('div');
+          day.style.cssText = 'margin-bottom:10px;border:2px solid #e5e7eb;border-radius:14px;padding:8px 10px;';
+          const dt = new Date(d.date + 'T00:00:00');
+          const diff = Math.round((new Date(today.toDateString()) - new Date(dt.toDateString())) / 86400000);
+          const when = diff === 0 ? 'сегодня' : diff === 1 ? 'вчера' : dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+          const head = document.createElement('div');
+          head.style.cssText = 'display:flex;justify-content:space-between;font-weight:800;margin-bottom:4px;';
+          head.innerHTML = '<span></span><span style="font-weight:600;opacity:.7;font-size:13px;"></span>';
+          head.children[0].textContent = when;
+          head.children[1].textContent = fmt(d.seconds) + ' · ' + '⭐'.repeat(Math.min(d.stars, 5)) + (d.stars > 5 ? ' ' + d.stars : '');
+          day.appendChild(head);
+          d.sessions.forEach(x => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:8px;align-items:center;font-size:14px;padding:2px 0;';
+            const acc = x.total ? Math.round(100 * x.correct / x.total) + '%' : '—';
+            row.innerHTML = '<span style="opacity:.6;min-width:44px;"></span><span></span>' +
+              '<span style="flex:1;min-width:0;"></span><span style="opacity:.65;font-size:13px;white-space:nowrap;"></span>';
+            row.children[0].textContent = x.time;
+            row.children[1].textContent = x.icon;
+            row.children[2].textContent = x.title + (x.lesson_no ? ' · урок ' + x.lesson_no : '');
+            row.children[3].textContent = fmt(x.seconds) + ' · ' + acc;
+            day.appendChild(row);
+          });
+          box.appendChild(day);
+        });
+      } catch (e) {
+        document.getElementById('history-sum').textContent = 'Историю загрузить не удалось';
+      }
 
       // прогресс по темам в порядке карты
       const byTitle = {};

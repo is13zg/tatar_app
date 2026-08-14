@@ -2187,6 +2187,9 @@
     }
 
     const items = data.items || [];
+    // засекаем занятие: сервер видит только момент финиша, а между
+    // открытием урока и первым ответом может пройти сколько угодно
+    const startedAt = Date.now();
     items.forEach(() => dots.appendChild(document.createElement('i')));
     let idx = 0, correct = 0, total = 0;
 
@@ -2265,6 +2268,7 @@
           theme_id: opts.themeId || null,
           lesson_no: opts.lessonNo || null,
           correct, total,
+          seconds: Math.round((Date.now() - startedAt) / 1000),
         };
         result = (await reportComplete(payload)) || { stars: stars_estimate(), sticker: null, streak: 0 };
       }

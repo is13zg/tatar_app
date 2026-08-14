@@ -173,3 +173,25 @@ class PhraseImage(Base):
     phrase: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     image_url: Mapped[str] = mapped_column(String(255))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class StudySession(Base):
+    """Одно занятие: что проходили, когда начали, сколько длилось.
+
+    lesson_results хранит ЛУЧШИЙ результат по уроку и перезаписывается, поэтому
+    по нему нельзя сказать, когда ребёнок занимался и сколько раз. Здесь строка
+    на каждое пройденное занятие и ничего не перезаписывается."""
+
+    __tablename__ = "study_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))            # unit | daily | review
+    theme_id: Mapped[Optional[int]] = mapped_column(ForeignKey("themes.id", ondelete="SET NULL"), nullable=True)
+    lesson_no: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    correct: Mapped[int] = mapped_column(Integer, default=0)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    stars: Mapped[int] = mapped_column(Integer, default=0)
+    seconds: Mapped[int] = mapped_column(Integer, default=0)  # присылает клиент: сервер знает только момент финиша
+    started_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    finished_at: Mapped[datetime] = mapped_column(DateTime)

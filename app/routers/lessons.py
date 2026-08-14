@@ -14,6 +14,7 @@ from ..deps import get_current_user
 from ..database import get_db
 from ..qneg import QUESTION_THEMES as QNEG_THEMES
 from ..models import (
+    StudySession,
     User, Theme, Word, UserProgress, UserMistake,
     UnitProgress, DailyLesson, UserSticker, LessonResult,
 )
@@ -2345,6 +2346,9 @@ class LessonComplete(BaseModel):
     lesson_no: Optional[int] = None
     correct: int = 0
     total: int = 0
+    # сколько заняло занятие; считает клиент — сервер видит только момент финиша,
+    # а между началом урока и первым ответом может пройти сколько угодно
+    seconds: int = 0
 
 
 def stars_for(correct: int, total: int) -> int:
@@ -2358,12 +2362,57 @@ def stars_for(correct: int, total: int) -> int:
     return 1
 
 
+@router.get("/history")
+async def study_history(db: Annotated[AsyncSession, Depends(get_db)],
+                        user: Annotated[User, Depends(get_current_user)],
+                        limit: int = 200):
+    """Журнал занятий ребёнка: день, время, длительность, что проходили.
+
+    Время отдаём по Казани — родитель смотрит на часы, а не на UTC."""
+    rows = (await db.execute(
+        select(StudySession, Theme.title_ru, Theme.icon_emoji)
+        .join(Theme, Theme.id == StudySession.theme_id, isouter=True)
+        .where(StudySession.user_id == user.id)
+        .order_by(StudySession.started_at.desc())
+        .limit(max(1, min(limit, 500)))
+    )).all()
+
+    by_day: dict[str, dict] = {}
+    for s, title, icon in rows:
+        local = s.started_at + KAZAN_UTC_OFFSET
+        day = local.date().isoformat()
+        d = by_day.setdefault(day, {"date": day, "seconds": 0, "stars": 0, "sessions": []})
+        d["seconds"] += s.seconds
+        d["stars"] += s.stars
+        d["sessions"].append({
+            "time": local.strftime("%H:%M"),
+            "kind": s.kind,
+            "title": title or ("Задание дня" if s.kind == "daily" else "Тренировка"),
+            "icon": icon or ("🔥" if s.kind == "daily" else "💪"),
+            "lesson_no": s.lesson_no,
+            "correct": s.correct, "total": s.total,
+            "stars": s.stars, "seconds": s.seconds,
+        })
+    days = sorted(by_day.values(), key=lambda d: d["date"], reverse=True)
+    return {"days": days,
+            "total_seconds": sum(d["seconds"] for d in days),
+            "total_sessions": sum(len(d["sessions"]) for d in days)}
+
+
 @router.post("/complete")
 async def lesson_complete(payload: LessonComplete,
                           db: Annotated[AsyncSession, Depends(get_db)],
                           user: Annotated[User, Depends(get_current_user)]):
     stars = stars_for(payload.correct, payload.total)
     sticker: Optional[str] = None
+    finished = now_utc()
+    # верхняя граница на случай, если вкладку оставили открытой на час
+    seconds = max(0, min(int(payload.seconds or 0), 2 * 60 * 60))
+    db.add(StudySession(
+        user_id=user.id, kind=payload.kind, theme_id=payload.theme_id,
+        lesson_no=payload.lesson_no, correct=payload.correct, total=payload.total,
+        stars=stars, seconds=seconds,
+        started_at=finished - timedelta(seconds=seconds), finished_at=finished))
 
     if payload.kind == "unit":
         if not payload.theme_id or not payload.lesson_no:
