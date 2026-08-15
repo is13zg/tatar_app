@@ -2026,28 +2026,36 @@
       hint.textContent = 'Послушай диктора и повтори вслух! (запись голоса заработает на https-версии сайта)';
       showNext();
     }
+    let starting = false;
     mic.onclick = async () => {
       if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
+      if (starting) return;   // второе касание, пока браузер ещё спрашивает разрешение
+      starting = true;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        recorder = new MediaRecorder(stream);
+        const rec = new MediaRecorder(stream);
+        recorder = rec;
         chunks = [];
-        recorder.ondataavailable = e => chunks.push(e.data);
-        recorder.onstop = () => {
+        rec.ondataavailable = e => chunks.push(e.data);
+        rec.onstop = () => {
           stream.getTracks().forEach(t => t.stop());
           mic.classList.remove('rec'); mic.textContent = '🎤';
-          myUrl = URL.createObjectURL(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }));
+          if (myUrl) URL.revokeObjectURL(myUrl);   // перезапись — старая ссылка больше не нужна
+          myUrl = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }));
           hint.textContent = 'Послушай себя и диктора — похоже?';
           showCompare();
         };
-        recorder.start();
+        rec.start();
         mic.classList.add('rec'); mic.textContent = '⏹';
         hint.textContent = 'Говори! Потом нажми ⏹';
-        setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 5000);
+        // таймаут привязан к СВОЕЙ записи: раньше он ссылался на общую переменную
+        // и мог остановить следующую запись вместо своей
+        setTimeout(() => { if (rec.state === 'recording') rec.stop(); }, 5000);
       } catch (e) {
         hint.textContent = 'Микрофон недоступен — просто повтори вслух!';
         showNext();
       }
+      starting = false;
     };
 
     let compareShown = false;
@@ -2063,10 +2071,19 @@
       screen.appendChild(cmp);
       showNext();
     }
+    // Кнопка одна на всё задание. Сюда приходят из трёх мест — нет микрофона,
+    // отказ в разрешении и удачная запись, — и без этого флага ребёнок видел
+    // «Получилось» столько раз, сколько раз нажимал на запись.
+    let nextShown = false, finished = false;
     function showNext() {
+      if (nextShown) return; nextShown = true;
       const next = el('button', 'kid-btn', 'Получилось! ➜');
       next.style.marginTop = '14px';
-      next.onclick = () => { reportAnswer(w.id, true, 'repeat_after'); done({ scored: false }); };
+      next.onclick = () => {
+        if (finished) return; finished = true;   // двойное касание не должно давать два ответа
+        reportAnswer(w.id, true, 'repeat_after');
+        done({ scored: false });
+      };
       screen.appendChild(next);
       setTimeout(() => next.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
     }
