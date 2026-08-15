@@ -206,8 +206,19 @@ def sentence_tokens(sentence: str) -> list[str]:
     return [t for t in re.split(r"[^\wәөүҗңһӘӨҮҖҢҺ-]+", sentence) if t]
 
 
-def lessons_total_for(word_count: int) -> int:
-    return max(1, math.ceil(word_count / NEW_WORDS_PER_LESSON)) + 1  # + босс
+# Темы, где четыре новых слова за урок — слишком много. Послелоги похожи на
+# слух, различаются одним аффиксом и требуют удержания пространственного
+# отношения: шесть штук по четыре давали перегруженный первый урок и почти
+# пустой второй. По двое — три урока с чистой парой в каждом.
+PACE_BY_THEME = {"Кайда? Где что лежит": 2}
+
+
+def words_per_lesson(theme_title: Optional[str] = None) -> int:
+    return PACE_BY_THEME.get(theme_title or "", NEW_WORDS_PER_LESSON)
+
+
+def lessons_total_for(word_count: int, theme_title: Optional[str] = None) -> int:
+    return max(1, math.ceil(word_count / words_per_lesson(theme_title))) + 1  # + босс
 
 
 async def get_ordered_units(db: AsyncSession) -> list[Theme]:
@@ -1157,7 +1168,7 @@ def ex_where(target: dict, place_pool: list[dict],
         same = [w for w in place_pool
                 if w["id"] != target["id"]
                 and anchor in PLACE_SCENES.get(w["text_tt"].lower(), {}).get("anchors", [])]
-        if len(same) >= 2:
+        if len(same) >= 1:
             break
     else:
         return None
@@ -1165,6 +1176,9 @@ def ex_where(target: dict, place_pool: list[dict],
     url = cached_tts_url(phrase)
     if not url:
         return None
+    # В первом уроке темы выбор из ДВУХ: пара «сверху / снизу» — самый чистый
+    # контраст, а четыре положения сразу ребёнок не разводит. Дальше вариантов
+    # становится больше по мере того, как послелоги вводятся.
     options = [target] + random.sample(same, min(3, len(same)))
     random.shuffle(options)
     # Если владелец нарисовал ситуации сам — показываем его картинки, и тогда
@@ -1762,7 +1776,7 @@ async def learning_path(db: Annotated[AsyncSession, Depends(get_db)], user: Anno
     result = []
     for i, t in enumerate(units, start=1):
         word_count = counts.get(t.id, 0)
-        total = lessons_total_for(word_count)
+        total = lessons_total_for(word_count, t.title_ru)
         p = progress.get(t.id)
         stars = p.stars if p else 0
         lessons_done = p.lessons_done if p else 0
@@ -1803,7 +1817,7 @@ async def unit_lesson(theme_id: int, lesson_no: int,
     words = await unit_words(db, theme_id)
     if not words:
         raise HTTPException(status_code=400, detail="В теме нет слов")
-    total = lessons_total_for(len(words))
+    total = lessons_total_for(len(words), theme.title_ru)
     lesson_no = max(1, min(lesson_no, total))
 
     # уроки внутри юнита идут по порядку — босс нельзя открыть первым
@@ -1837,8 +1851,9 @@ async def unit_lesson(theme_id: int, lesson_no: int,
     if is_boss:
         # босс: по одному слову из каждого урока + добор случайными до BOSS_QUESTIONS
         sample: list[dict] = []
-        for i in range(0, len(pool), NEW_WORDS_PER_LESSON):
-            chunk = pool[i:i + NEW_WORDS_PER_LESSON]
+        boss_pace = words_per_lesson(theme.title_ru)
+        for i in range(0, len(pool), boss_pace):
+            chunk = pool[i:i + boss_pace]
             if chunk:
                 sample.append(random.choice(chunk))
         seen_ids = {w["id"] for w in sample}
@@ -1892,10 +1907,11 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         random.shuffle(items)
         items = _no_three_in_a_row(items)
     else:
-        start = (lesson_no - 1) * NEW_WORDS_PER_LESSON
-        new_words = pool[start:start + NEW_WORDS_PER_LESSON]
+        pace = words_per_lesson(theme.title_ru)
+        start = (lesson_no - 1) * pace
+        new_words = pool[start:start + pace]
         if not new_words:
-            new_words = pool[-NEW_WORDS_PER_LESSON:]
+            new_words = pool[-pace:]
         review = await due_review_words(db, user, 3, exclude_theme=theme_id)
         # работа над ошибками: незакрытые ошибки едут за учеником — до 4 в каждый урок,
         # они важнее планового повторения (его ужимаем, чтобы урок не разбухал)
@@ -1928,6 +1944,7 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         # бонусные форматы — только на словах уже пройденных юнитов
         learned = await learned_theme_ids(db, theme.order_index)
         icon_only_ids = {t.id for t in await get_ordered_units(db) if t.title_ru in ICON_ONLY_THEMES}
+        introduced_place = pool[:start + len(new_words)] if icon_only_theme else []
         items = build_exercises(new_words, pool, review, sort_payload,
                                 phrase_mode=phrase_mode, allow_build=lesson_no >= 3,
                                 icon_only=theme.title_ru in ICON_ONLY_THEMES,
@@ -1945,7 +1962,11 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                                 season_pool=await season_words(db, learned),
                                 # послелоги и настроения тренируются и внутри своей темы:
                                 # иначе формат существует, но в самом юните ни разу не выпадает
-                                place_pool=await place_words(db, learned | {theme.id}),
+                                # в своей теме варианты ограничены тем, что уже введено:
+                                # иначе в первом уроке ребёнок выбирает между положениями,
+                                # которых ему ещё не показывали
+                                place_pool=(introduced_place if icon_only_theme
+                                            else await place_words(db, learned | {theme.id})),
                                 past_pool=await verb_words(db, learned),
                                 count_pool=await count_words(db, learned),
                                 mood_pool=await mood_words(db, learned | {theme.id}),
@@ -2423,7 +2444,7 @@ async def lesson_complete(payload: LessonComplete,
         if not user.is_admin and theme.id not in await unlocked_theme_ids(db, user):
             raise HTTPException(status_code=403, detail="Этот юнит ещё закрыт")
         words = await unit_words(db, theme.id)
-        total_lessons = lessons_total_for(len(words))
+        total_lessons = lessons_total_for(len(words), theme.title_ru)
         p = (await db.execute(select(UnitProgress).where(
             UnitProgress.user_id == user.id, UnitProgress.theme_id == theme.id
         ))).scalar_one_or_none()
@@ -2513,7 +2534,7 @@ async def home_summary(db: Annotated[AsyncSession, Depends(get_db)], user: Annot
         if prev_done and not completed:
             lessons_done = p.lessons_done if p else 0
             counts = await word_counts_by_theme(db)
-            total = lessons_total_for(counts.get(t.id, 0))
+            total = lessons_total_for(counts.get(t.id, 0), t.title_ru)
             current = {
                 "theme_id": t.id, "title_ru": t.title_ru, "icon_emoji": t.icon_emoji or "📚",
                 "next_lesson": min(lessons_done + 1, total),
