@@ -1154,7 +1154,8 @@ PLACE_SUBJECT = "🐱"
 
 
 def ex_where(target: dict, place_pool: list[dict],
-             phrase_images: Optional[dict] = None) -> Optional[dict]:
+             phrase_images: Optional[dict] = None,
+             phrase_audio: Optional[dict] = None) -> Optional[dict]:
     """«Кайда песи?» — четыре сцены с одним и тем же котом и одной опорой.
     Предмет всюду один, поэтому угадать по картинке нельзя: решает только
     услышанный послелог. Фраза берётся из кэша TTS (tools/gen_hard_tts.py)."""
@@ -1173,7 +1174,7 @@ def ex_where(target: dict, place_pool: list[dict],
     else:
         return None
     phrase = f"Песи {ANCHOR_TT[anchor]} {tt}."
-    url = cached_tts_url(phrase)
+    url = (phrase_audio or {}).get(phrase) or cached_tts_url(phrase)
     if not url:
         return None
     # В первом уроке темы выбор из ДВУХ: пара «сверху / снизу» — самый чистый
@@ -1264,13 +1265,20 @@ def ex_count(target: dict) -> Optional[dict]:
 STORY_FUNCTION_WORDS = {"кем", "нәрсә", "бу", "һәм"}
 
 
+async def phrase_audio_map(db: AsyncSession) -> dict[str, str]:
+    """Своя озвучка фраз: другой голос или запись владельца."""
+    from ..models import PhraseImage
+    rows = (await db.execute(select(PhraseImage).where(PhraseImage.audio_url.is_not(None)))).scalars().all()
+    return {r.phrase: r.audio_url for r in rows}
+
+
 async def phrase_image_map(db: AsyncSession) -> dict[str, str]:
     """Загруженные владельцем картинки к конкретным фразам.
 
     Пусто — значит, всё рисуется как раньше: сцена из эмодзи у послелогов,
     фото подлежащего в истории. Появилась картинка — задание берёт её."""
     from ..models import PhraseImage
-    rows = (await db.execute(select(PhraseImage))).scalars().all()
+    rows = (await db.execute(select(PhraseImage).where(PhraseImage.image_url.is_not(None)))).scalars().all()
     return {r.phrase: r.image_url for r in rows}
 
 MOOD_THEME = "Кәеф ничек? Настроения"
@@ -1335,7 +1343,8 @@ def ex_why(target: dict, mood_pool: list[dict]) -> Optional[dict]:
 
 
 def ex_story(stories: list[dict], words_by_tt: dict[str, dict],
-             phrase_images: Optional[dict] = None) -> Optional[dict]:
+             phrase_images: Optional[dict] = None,
+             phrase_audio: Optional[dict] = None) -> Optional[dict]:
     """Четыре предложения подряд и два вопроса по ним — единственный формат,
     где звучит связный текст. Ответить, узнав одно слово, нельзя: все герои
     показаны и все прозвучали. Вопросы про РАЗНЫХ героев, поэтому удержать
@@ -1348,7 +1357,7 @@ def ex_story(stories: list[dict], words_by_tt: dict[str, dict],
         parts, ok = [], True
         for tt_s, ru_s, subj in st["parts"]:
             w = words_by_tt.get(subj.lower())
-            url = cached_tts_url(tt_s)
+            url = (phrase_audio or {}).get(tt_s) or cached_tts_url(tt_s)
             if not w or not url:
                 ok = False
                 break
@@ -1363,7 +1372,7 @@ def ex_story(stories: list[dict], words_by_tt: dict[str, dict],
         questions = []
         for q in st["questions"]:
             ans = words_by_tt.get(q["answer"].lower())
-            url = cached_tts_url(q["tt"])
+            url = (phrase_audio or {}).get(q["tt"]) or cached_tts_url(q["tt"])
             if not ans or not url:
                 questions = []
                 break
@@ -1462,7 +1471,8 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                     count_pool: Optional[list[dict]] = None,
                     mood_pool: Optional[list[dict]] = None,
                     stories: Optional[tuple] = None,
-                    phrase_images: Optional[dict] = None) -> list[dict]:
+                    phrase_images: Optional[dict] = None,
+                    phrase_audio: Optional[dict] = None) -> list[dict]:
     """Урок: чередование «карточка → сразу практика» + разнообразное закрепление.
     phrase_mode: тема из фраз — только карточки, звучание и повторение за диктором.
     allow_build: «собери слово» — только с 3-го урока юнита (для начала это слишком сложно)."""
@@ -1475,12 +1485,12 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
         # подача — карточка, отработка — сцена «кот и кровать» и голос.
         for w in new_words:
             items.append(ex_card(w))
-            e = ex_where(w, place_pool or [], phrase_images) if place_pool else None
+            e = ex_where(w, place_pool or [], phrase_images, phrase_audio) if place_pool else None
             if e:
                 items.append(e)
         practice = []
         for w in new_words:
-            e = ex_where(w, place_pool or [], phrase_images) if place_pool else None
+            e = ex_where(w, place_pool or [], phrase_images, phrase_audio) if place_pool else None
             if e:
                 practice.append(e)
             e = ex_pick_word_audio(w, pool)
@@ -1510,7 +1520,7 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
             items.append(presenter(w))
             e = None
             if place_pool and w["text_tt"].lower() in PLACE_SCENES:
-                e = ex_where(w, place_pool, phrase_images)          # «Кайда песи?» — ради этого тема и нужна
+                e = ex_where(w, place_pool, phrase_images, phrase_audio)          # «Кайда песи?» — ради этого тема и нужна
             elif mood_pool and w["text_tt"].lower() in MOOD_CAUSES:
                 e = ex_why(w, mood_pool)             # «Нигә?» — связь события и состояния
             if not e and sentences_ok:
@@ -1601,9 +1611,9 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
         if season_pool and late_unit:
             extra_gens.append(lambda: ex_seasons(season_pool))  # альбом времён года
         if stories and stories[0]:
-            extra_gens.append(lambda: ex_story(list(stories[0]), stories[1], phrase_images))
+            extra_gens.append(lambda: ex_story(list(stories[0]), stories[1], phrase_images, phrase_audio))
         if place_pool:
-            extra_gens.append(lambda: ex_where(random.choice(place_pool), place_pool, phrase_images))
+            extra_gens.append(lambda: ex_where(random.choice(place_pool), place_pool, phrase_images, phrase_audio))
         if past_pool:
             extra_gens.append(lambda: ex_past(random.choice(past_pool)))  # «хәзерме, инде?»
         if count_pool:
@@ -1866,11 +1876,12 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         icon_only_boss = theme.title_ru in ICON_ONLY_THEMES
         boss_place_pool = await place_words(db, None) if icon_only_boss else []
         boss_phrase_images = await phrase_image_map(db) if icon_only_boss else {}
+        boss_phrase_audio = await phrase_audio_map(db) if icon_only_boss else {}
         for i, w in enumerate(sample):
             if icon_only_boss:
                 # финальная проверка юнита про послелоги обязана спрашивать, ГДЕ кошка,
                 # а не какой значок приклеен к слову
-                e = ex_where(w, boss_place_pool, boss_phrase_images) or ex_pick_word_audio(w, pool)
+                e = ex_where(w, boss_place_pool, boss_phrase_images, boss_phrase_audio) or ex_pick_word_audio(w, pool)
             elif phrase_mode:
                 e = ex_pick_word_audio(w, pool)
             else:
@@ -1971,7 +1982,8 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                                 count_pool=await count_words(db, learned),
                                 mood_pool=await mood_words(db, learned | {theme.id}),
                                 stories=await story_pool(db, theme.order_index),
-                                phrase_images=await phrase_image_map(db))
+                                phrase_images=await phrase_image_map(db),
+                                phrase_audio=await phrase_audio_map(db))
 
     if len(items) < 3:
         # страховка: без озвучки/картинок упражнения могли не собраться — даём карточки

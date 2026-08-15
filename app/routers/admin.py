@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..deps import get_current_admin
 from ..database import get_db
-from ..models import PhraseImage, Theme, Word
+from ..models import PhraseGroup, PhraseImage, Theme, Word
 from ..tts import synthesize_to_file
 from .lessons import now_utc
 
@@ -557,31 +557,141 @@ async def word_image(
 @router.get("/phrase_images")
 async def phrase_images(db: Annotated[AsyncSession, Depends(get_db)] = None,
                         admin = Depends(get_current_admin)):
-    """Все фразы, которым МОЖНО дать картинку, и то, что уже загружено.
+    """Все фразы, которым можно дать картинку и свою озвучку, по группам.
 
-    Список собирается из кода (сцены послелогов и мини-истории), а не из базы:
-    это единственное место, где фразы вообще перечислены."""
+    Группа — это тема послелогов или отдельная история. Список собирается из
+    кода (PLACE_SCENES и tools/stories.py), а не из базы: это единственное
+    место, где фразы вообще перечислены."""
     from ..routers.lessons import ANCHOR_TT, PLACE_SCENES
+    from ..tts import cached_tts_url
     from tools.stories import STORIES
 
     slots: list[dict] = []
     for tt, scene in PLACE_SCENES.items():
         for anchor in scene["anchors"]:
             slots.append({"phrase": f"Песи {ANCHOR_TT[anchor]} {tt}.",
-                          "group": "Где что лежит", "hint": tt})
+                          "group_key": "place", "group": "📍 Где что лежит", "hint": tt})
     for st in STORIES:
         for tt_s, ru_s, _subj in st["parts"]:
-            slots.append({"phrase": tt_s, "group": "История: " + st["key"], "hint": ru_s})
+            slots.append({"phrase": tt_s, "group_key": st["key"],
+                          "group": "📖 " + st.get("title", st["key"]), "hint": ru_s})
+        for q in st["questions"]:
+            slots.append({"phrase": q["tt"], "group_key": st["key"],
+                          "group": "📖 " + st.get("title", st["key"]),
+                          "hint": q["ru"] + " (вопрос)"})
 
     rows = (await db.execute(select(PhraseImage))).scalars().all()
-    have = {r.phrase: r.image_url for r in rows}
+    have = {r.phrase: r for r in rows}
+    checked = {g.key: g.checked_at
+               for g in (await db.execute(select(PhraseGroup))).scalars().all()}
+
     seen, out = set(), []
     for sl in slots:
         if sl["phrase"] in seen:
             continue
         seen.add(sl["phrase"])
-        out.append({**sl, "image_url": have.get(sl["phrase"])})
+        row = have.get(sl["phrase"])
+        out.append({**sl,
+                    "image_url": row.image_url if row else None,
+                    # своя озвучка, иначе общая из кэша TTS
+                    "audio_url": (row.audio_url if row and row.audio_url else None)
+                                 or cached_tts_url(sl["phrase"]),
+                    "own_audio": bool(row and row.audio_url),
+                    "checked_at": checked.get(sl["group_key"])})
     return out
+
+
+@router.post("/phrase_group_checked/{key}")
+async def phrase_group_checked(key: str, payload: dict = Body(...),
+                               db: Annotated[AsyncSession, Depends(get_db)] = None,
+                               admin = Depends(get_current_admin)):
+    """Отметка «эту группу фраз проверил»: картинки посмотрел, озвучку послушал."""
+    row = (await db.execute(select(PhraseGroup).where(PhraseGroup.key == key))).scalar_one_or_none()
+    if not row:
+        row = PhraseGroup(key=key)
+        db.add(row)
+    row.checked_at = now_utc() if payload.get("checked") else None
+    await db.commit()
+    return {"key": key, "checked_at": row.checked_at}
+
+
+@router.post("/phrase_tts")
+async def phrase_tts(payload: dict = Body(...),
+                     db: Annotated[AsyncSession, Depends(get_db)] = None,
+                     admin = Depends(get_current_admin)):
+    """Переозвучить фразу другим голосом (alsu/almaz).
+
+    Пишем результат в свою колонку, а не в общий кэш: кэш ключуется строкой и
+    голосом, и подменять его целиком означало бы менять озвучку везде, где эта
+    строка встречается."""
+    phrase = (payload.get("phrase") or "").strip()
+    voice = (payload.get("voice") or "alsu").strip()
+    if not phrase:
+        raise HTTPException(status_code=400, detail="Пустая фраза")
+    if voice not in ("alsu", "almaz"):
+        raise HTTPException(status_code=400, detail="Голос может быть alsu или almaz")
+    try:
+        url = await synthesize_to_file(phrase, speaker=voice)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Озвучка не удалась: {e}")
+    row = (await db.execute(select(PhraseImage).where(PhraseImage.phrase == phrase))).scalar_one_or_none()
+    if not row:
+        row = PhraseImage(phrase=phrase)
+        db.add(row)
+    row.audio_url = url
+    row.updated_at = now_utc()
+    await db.commit()
+    return {"phrase": phrase, "audio_url": url, "own_audio": True}
+
+
+@router.post("/phrase_audio")
+async def phrase_audio(phrase: str = Form(...), file: UploadFile = File(...),
+                       db: Annotated[AsyncSession, Depends(get_db)] = None,
+                       admin = Depends(get_current_admin)):
+    """Своя запись фразы вместо синтеза."""
+    import hashlib
+    from pathlib import Path
+    from ..config import STATIC_DIR
+
+    phrase = (phrase or "").strip()
+    if not phrase:
+        raise HTTPException(status_code=400, detail="Пустая фраза")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Пустой файл")
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Файл больше 10 МБ")
+    from ..media import optimize_wav
+    opt = optimize_wav(data)
+    if opt:
+        data = opt
+    target_dir = Path(STATIC_DIR) / "voice" / "phrases"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    name = "p_" + hashlib.md5(phrase.encode("utf-8")).hexdigest()[:12] + ".wav"
+    (target_dir / name).write_bytes(data)
+    url = f"/static/voice/phrases/{name}?v={int(time.time())}"
+
+    row = (await db.execute(select(PhraseImage).where(PhraseImage.phrase == phrase))).scalar_one_or_none()
+    if not row:
+        row = PhraseImage(phrase=phrase)
+        db.add(row)
+    row.audio_url = url
+    row.updated_at = now_utc()
+    await db.commit()
+    return {"phrase": phrase, "audio_url": url, "own_audio": True}
+
+
+@router.delete("/phrase_audio")
+async def reset_phrase_audio(phrase: str,
+                             db: Annotated[AsyncSession, Depends(get_db)] = None,
+                             admin = Depends(get_current_admin)):
+    """Вернуть общую озвучку из кэша TTS."""
+    from ..tts import cached_tts_url
+    row = (await db.execute(select(PhraseImage).where(PhraseImage.phrase == phrase))).scalar_one_or_none()
+    if row:
+        row.audio_url = None
+        await db.commit()
+    return {"phrase": phrase, "audio_url": cached_tts_url(phrase), "own_audio": False}
 
 
 @router.post("/phrase_image")
@@ -639,7 +749,9 @@ async def delete_phrase_image(phrase: str,
     у послелогов, фото подлежащего в истории)."""
     row = (await db.execute(select(PhraseImage).where(PhraseImage.phrase == phrase))).scalar_one_or_none()
     if row:
-        await db.delete(row)
+        row.image_url = None          # своя озвучка у этой фразы могла остаться
+        if not row.audio_url:
+            await db.delete(row)
         await db.commit()
     return {"phrase": phrase, "image_url": None}
 

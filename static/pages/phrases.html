@@ -3,39 +3,66 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Картинки к фразам — TT-Learn Kids</title>
+  <title>Картинки и озвучка фраз — TT-Learn Kids</title>
   <link rel="stylesheet" href="/static/kid.css?v=20260812c">
   <style>
-    body { padding: 16px; }
-    .wrap { max-width: 980px; margin: 0 auto; }
-    .grp { margin: 18px 0 6px; font-weight: 800; opacity: .75; font-size: 14px; }
-    .row { display: flex; gap: 12px; align-items: center; padding: 8px;
-           border: 2px solid #e5e7eb; border-radius: 14px; margin-bottom: 8px; background: #fff; }
-    .thumb { width: 84px; height: 84px; flex: 0 0 84px; border-radius: 10px; overflow: hidden;
+    body { padding: 0; background: #f8fafc; }
+    header { display: flex; gap: 12px; align-items: center; padding: 12px 16px; background: #fff;
+             border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 10; flex-wrap: wrap; }
+    header a { color: #2563eb; text-decoration: none; }
+    header h1 { font-size: 18px; margin: 0; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 12px; }
+    .gsel { position: relative; margin-left: auto; }
+    .gsel > button { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 10px;
+                     background: #fff; cursor: pointer; font-size: 15px; }
+    .gsel-panel { position: absolute; right: 0; top: 110%; background: #fff; border: 1px solid #e5e7eb;
+                  border-radius: 12px; padding: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
+                  max-height: 60vh; overflow: auto; min-width: 260px; z-index: 20; }
+    .gsel-panel label { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 14px; }
+    .gsel-tools { display: flex; gap: 8px; margin-bottom: 6px; }
+    .gsel-tools button { font-size: 13px; padding: 4px 8px; border: 1px solid #e5e7eb;
+                         border-radius: 8px; background: #fff; cursor: pointer; }
+    .grp { display: flex; align-items: center; gap: 8px; margin: 18px 0 6px; font-weight: 800; }
+    .grp .mark { border: none; cursor: pointer; font-size: 20px; line-height: 1;
+                 padding: 3px 7px; border-radius: 999px; }
+    .grp .cnt { font-weight: 600; font-size: 13px; opacity: .6; }
+    .row { display: flex; gap: 10px; align-items: center; padding: 8px; background: #fff;
+           border: 2px solid #e5e7eb; border-radius: 14px; margin-bottom: 8px; flex-wrap: wrap; }
+    .thumb { width: 72px; height: 72px; flex: 0 0 72px; border-radius: 10px; overflow: hidden;
              display: flex; align-items: center; justify-content: center; background: #f4f4f5; }
     .thumb img { max-width: 100%; max-height: 100%; }
-    .txt { flex: 1; min-width: 0; }
+    .txt { flex: 1; min-width: 170px; }
     .tt { font-weight: 800; }
     .ru { font-size: 13px; opacity: .65; }
-    .acts { display: flex; gap: 8px; flex-wrap: wrap; }
-    .acts button, .acts label { font-size: 14px; padding: 6px 10px; border-radius: 999px;
-                                border: 2px solid #e5e7eb; background: #fff; cursor: pointer; }
-    .none { font-size: 26px; opacity: .35; }
+    .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+    .acts button, .acts label { font-size: 13px; padding: 6px 9px; border-radius: 999px;
+                                border: 1px solid #e5e7eb; background: #fff; cursor: pointer; }
+    .acts .own { background: #ecfdf5; border-color: #a7f3d0; }
+    .none { font-size: 24px; opacity: .35; }
   </style>
 </head>
 <body>
+<header>
+  <a href="/static/pages/review.html">← Проверка слов</a>
+  <h1>🖼 Картинки и озвучка фраз</h1>
+  <div class="gsel">
+    <button id="grp-btn">📚 Группы</button>
+    <div class="gsel-panel" id="grp-panel" hidden>
+      <div class="gsel-tools">
+        <button id="g-all">✅ Все</button>
+        <button id="g-none">⬜ Ничего</button>
+        <button id="g-todo">👀 Только непроверенные</button>
+      </div>
+      <div id="grp-list"></div>
+    </div>
+  </div>
+</header>
 <div class="wrap">
-  <h2>🖼 Картинки к фразам</h2>
-  <p style="font-size:14px;opacity:.75;max-width:640px;">
-    Здесь картинка привязана к <b>ситуации</b>, а не к слову: «Песи карават янында»
+  <p style="font-size:14px;opacity:.75;">
+    Картинка и озвучка привязаны к <b>ситуации</b>, а не к слову: «Песи карават янында»
     и «Песи карават астында» — один и тот же кот и одна и та же кровать, различается
-    только положение. Пока картинки нет, задание рисует сцену из эмодзи (послелоги)
-    или показывает фото героя (истории).
-  </p>
-  <p style="font-size:13px;opacity:.6;">
-    В упражнении «Где кошка?» свои картинки включаются только тогда, когда загружены
-    <b>все четыре</b> варианта на одну опору — иначе одна фотография среди трёх
-    нарисованных сцен сама выдаёт ответ.
+    только положение. Пока своего нет, задание рисует сцену из эмодзи и берёт общую
+    озвучку.
   </p>
   <div id="stat" style="font-size:14px;margin:10px 0;"></div>
   <div id="list"></div>
@@ -52,94 +79,224 @@
   const api = async (url, opts = {}) => {
     const r = await fetch(url, { ...opts, headers: { Authorization: 'Bearer ' + token, ...(opts.headers || {}) } });
     if (!r.ok) throw new Error((await r.text()).slice(0, 200));
-    return r.status === 204 ? null : r.json();
+    return r.json();
   };
+  const player = new Audio();
+  const play = url => { if (!url) return; player.pause(); player.src = url; player.play().catch(() => {}); };
 
-  let slots = [];
+  let slots = [], groups = [], shown = new Set();
+
   const stat = () => {
-    const n = slots.filter(s => s.image_url).length;
+    const vis = slots.filter(s => shown.has(s.group_key));
+    const img = vis.filter(s => s.image_url).length;
+    const own = vis.filter(s => s.own_audio).length;
     document.getElementById('stat').textContent =
-      `Загружено ${n} из ${slots.length} фраз`;
+      `Показано фраз: ${vis.length} из ${slots.length} · со своей картинкой ${img} · со своей озвучкой ${own}`;
   };
 
-  const render = () => {
-    list.innerHTML = '';
-    let group = null;
-    slots.forEach(sl => {
-      if (sl.group !== group) {
-        group = sl.group;
-        const g = document.createElement('div');
-        g.className = 'grp';
-        g.textContent = group;
-        list.appendChild(g);
-      }
-      const row = document.createElement('div');
-      row.className = 'row';
-
-      const thumb = document.createElement('div');
-      thumb.className = 'thumb';
-      if (sl.image_url) {
-        const im = document.createElement('img');
-        im.src = sl.image_url; im.alt = '';
-        thumb.appendChild(im);
-      } else {
-        thumb.innerHTML = '<span class="none">🖼</span>';
-      }
-      row.appendChild(thumb);
-
-      const txt = document.createElement('div');
-      txt.className = 'txt';
-      txt.innerHTML = '<div class="tt"></div><div class="ru"></div>';
-      txt.querySelector('.tt').textContent = sl.phrase;
-      txt.querySelector('.ru').textContent = sl.hint || '';
-      row.appendChild(txt);
-
-      const acts = document.createElement('div');
-      acts.className = 'acts';
+  function buildGroupPicker() {
+    const box = document.getElementById('grp-list');
+    box.innerHTML = '';
+    groups.forEach(g => {
       const lab = document.createElement('label');
-      lab.textContent = sl.image_url ? '🔁 Заменить' : '⬆️ Загрузить';
-      const inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
-      inp.onchange = async () => {
-        if (!inp.files[0]) return;
-        lab.textContent = '…';
-        try {
-          const fd = new FormData();
-          fd.append('phrase', sl.phrase);
-          fd.append('file', inp.files[0]);
-          const res = await api('/admin/phrase_image', { method: 'POST', body: fd });
-          sl.image_url = res.image_url;
-          render(); stat();
-        } catch (e) {
-          alert('Не удалось загрузить: ' + e.message);
-          lab.textContent = '⬆️ Загрузить';
-        }
-      };
-      lab.appendChild(inp);
-      acts.appendChild(lab);
-
-      if (sl.image_url) {
-        const del = document.createElement('button');
-        del.textContent = '🗑 Убрать';
-        del.onclick = async () => {
-          if (!confirm('Убрать картинку у фразы «' + sl.phrase + '»?')) return;
-          await api('/admin/phrase_image?phrase=' + encodeURIComponent(sl.phrase), { method: 'DELETE' });
-          sl.image_url = null;
-          render(); stat();
-        };
-        acts.appendChild(del);
-      }
-      row.appendChild(acts);
-      list.appendChild(row);
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = shown.has(g.key);
+      cb.onchange = () => { cb.checked ? shown.add(g.key) : shown.delete(g.key); render(); };
+      lab.appendChild(cb);
+      const t = document.createElement('span');
+      t.style.flex = '1';
+      t.textContent = g.title;
+      lab.appendChild(t);
+      const face = document.createElement('span');
+      face.textContent = g.checked_at ? '\u{1F44C}' : '\u{1F440}';
+      lab.appendChild(face);
+      box.appendChild(lab);
     });
-  };
+    document.getElementById('grp-btn').textContent =
+      shown.size === groups.length ? `📚 Все группы (${groups.length})` : `📚 Групп: ${shown.size} из ${groups.length}`;
+  }
+
+  function render() {
+    list.innerHTML = '';
+    groups.forEach(g => {
+      if (!shown.has(g.key)) return;
+      const mine = slots.filter(s => s.group_key === g.key);
+      if (!mine.length) return;
+
+      const head = document.createElement('div');
+      head.className = 'grp';
+      const title = document.createElement('span');
+      title.textContent = g.title;
+      head.appendChild(title);
+      const cnt = document.createElement('span');
+      cnt.className = 'cnt';
+      cnt.textContent = `${mine.filter(s => s.image_url).length}/${mine.length} с картинкой`;
+      head.appendChild(cnt);
+
+      // приёмка группы: те же значки, что у тем в панели проверки
+      const mark = document.createElement('button');
+      mark.className = 'mark';
+      const paintMark = () => {
+        const on = !!g.checked_at;
+        mark.textContent = on ? '\u{1F44C}' : '\u{1F440}';
+        mark.style.background = on ? 'rgba(22,163,74,.14)' : 'rgba(234,88,12,.12)';
+        mark.title = on ? 'Проверено — нажмите, чтобы снять' : 'Нужно посмотреть';
+        title.style.opacity = on ? '.55' : '1';
+      };
+      mark.onclick = async () => {
+        const want = !g.checked_at;
+        try {
+          const r = await api('/admin/phrase_group_checked/' + encodeURIComponent(g.key), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ checked: want }),
+          });
+          g.checked_at = r.checked_at;
+          paintMark(); buildGroupPicker();
+        } catch (e) { alert('Не удалось: ' + e.message); }
+      };
+      paintMark();
+      head.appendChild(mark);
+      list.appendChild(head);
+
+      mine.forEach(sl => list.appendChild(rowFor(sl)));
+    });
+    stat();
+  }
+
+  function rowFor(sl) {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    if (sl.image_url) {
+      const im = document.createElement('img');
+      im.src = sl.image_url; im.alt = '';
+      thumb.appendChild(im);
+    } else thumb.innerHTML = '<span class="none">🖼</span>';
+    row.appendChild(thumb);
+
+    const txt = document.createElement('div');
+    txt.className = 'txt';
+    txt.innerHTML = '<div class="tt"></div><div class="ru"></div>';
+    txt.querySelector('.tt').textContent = sl.phrase;
+    txt.querySelector('.ru').textContent = sl.hint || '';
+    row.appendChild(txt);
+
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+
+    const listen = document.createElement('button');
+    listen.textContent = '▶️';
+    listen.title = sl.own_audio ? 'Своя озвучка' : 'Общая озвучка';
+    if (sl.own_audio) listen.classList.add('own');
+    listen.onclick = () => play(sl.audio_url);
+    acts.appendChild(listen);
+
+    [['Алсу', 'alsu'], ['Алмаз', 'almaz']].forEach(([label, voice]) => {
+      const b = document.createElement('button');
+      b.textContent = '🔁 ' + label;
+      b.onclick = async () => {
+        b.disabled = true; b.textContent = '…';
+        try {
+          const r = await api('/admin/phrase_tts', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phrase: sl.phrase, voice }),
+          });
+          sl.audio_url = r.audio_url; sl.own_audio = true;
+          play(sl.audio_url);
+          render();
+        } catch (e) { alert('Озвучка не удалась: ' + e.message); b.disabled = false; b.textContent = '🔁 ' + label; }
+      };
+      acts.appendChild(b);
+    });
+
+    const rec = document.createElement('label');
+    rec.textContent = '🎙 запись';
+    const recInp = document.createElement('input');
+    recInp.type = 'file'; recInp.accept = 'audio/*'; recInp.style.display = 'none';
+    recInp.onchange = async () => {
+      if (!recInp.files[0]) return;
+      const fd = new FormData();
+      fd.append('phrase', sl.phrase); fd.append('file', recInp.files[0]);
+      try {
+        const r = await api('/admin/phrase_audio', { method: 'POST', body: fd });
+        sl.audio_url = r.audio_url; sl.own_audio = true; render();
+      } catch (e) { alert('Не удалось загрузить: ' + e.message); }
+    };
+    rec.appendChild(recInp);
+    acts.appendChild(rec);
+
+    if (sl.own_audio) {
+      const back = document.createElement('button');
+      back.textContent = '↩️ звук';
+      back.title = 'Вернуть общую озвучку';
+      back.onclick = async () => {
+        const r = await api('/admin/phrase_audio?phrase=' + encodeURIComponent(sl.phrase), { method: 'DELETE' });
+        sl.audio_url = r.audio_url; sl.own_audio = false; render();
+      };
+      acts.appendChild(back);
+    }
+
+    const lab = document.createElement('label');
+    lab.textContent = sl.image_url ? '🔁 картинка' : '⬆️ картинка';
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+    inp.onchange = async () => {
+      if (!inp.files[0]) return;
+      const fd = new FormData();
+      fd.append('phrase', sl.phrase); fd.append('file', inp.files[0]);
+      try {
+        const r = await api('/admin/phrase_image', { method: 'POST', body: fd });
+        sl.image_url = r.image_url; render();
+      } catch (e) { alert('Не удалось загрузить: ' + e.message); }
+    };
+    lab.appendChild(inp);
+    acts.appendChild(lab);
+
+    if (sl.image_url) {
+      const del = document.createElement('button');
+      del.textContent = '🗑';
+      del.title = 'Убрать картинку';
+      del.onclick = async () => {
+        if (!confirm('Убрать картинку у фразы «' + sl.phrase + '»?')) return;
+        await api('/admin/phrase_image?phrase=' + encodeURIComponent(sl.phrase), { method: 'DELETE' });
+        sl.image_url = null; render();
+      };
+      acts.appendChild(del);
+    }
+    row.appendChild(acts);
+    return row;
+  }
 
   try {
     slots = await api('/admin/phrase_images');
-    render(); stat();
+    const seen = new Map();
+    slots.forEach(s => {
+      if (!seen.has(s.group_key)) seen.set(s.group_key, { key: s.group_key, title: s.group, checked_at: s.checked_at });
+    });
+    groups = [...seen.values()];
+    // по умолчанию показываем только то, что ещё не принято: со временем групп
+    // станет много, и открывать все сразу бессмысленно
+    const todo = groups.filter(g => !g.checked_at);
+    shown = new Set((todo.length ? todo : groups).map(g => g.key));
+    buildGroupPicker();
+    render();
   } catch (e) {
     list.innerHTML = '<p>Не удалось загрузить список: ' + e.message + '</p>';
   }
+
+  const panel = document.getElementById('grp-panel');
+  document.getElementById('grp-btn').onclick = () => { panel.hidden = !panel.hidden; };
+  document.addEventListener('click', e => {
+    if (!panel.hidden && !e.target.closest('.gsel')) panel.hidden = true;
+  });
+  document.getElementById('g-all').onclick = () => { shown = new Set(groups.map(g => g.key)); buildGroupPicker(); render(); };
+  document.getElementById('g-none').onclick = () => { shown = new Set(); buildGroupPicker(); render(); };
+  document.getElementById('g-todo').onclick = () => {
+    shown = new Set(groups.filter(g => !g.checked_at).map(g => g.key));
+    buildGroupPicker(); render();
+  };
 })();
 </script>
 </body>

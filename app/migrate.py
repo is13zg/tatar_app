@@ -22,6 +22,9 @@ _COLUMNS: dict[str, dict[str, str]] = {
         "sentence_audio_url": "VARCHAR(255)",
         "image_prompt": "TEXT",
     },
+    "phrase_images": {
+        "audio_url": "VARCHAR(255)",
+    },
     "user_progress": {
         "strength": "INTEGER DEFAULT 0",
         "due_at": "DATETIME",
@@ -30,6 +33,37 @@ _COLUMNS: dict[str, dict[str, str]] = {
         "first_seen_at": "DATETIME",
     },
 }
+
+
+async def _relax_phrase_images(conn) -> None:
+    """У phrase_images.image_url снимаем NOT NULL.
+
+    Таблица родилась, когда картинка была единственным содержимым строки; теперь
+    у фразы может быть только своя озвучка. SQLite не умеет менять ограничение
+    столбца, поэтому пересобираем таблицу, перенося данные."""
+    res = await conn.exec_driver_sql("PRAGMA table_info(phrase_images)")
+    cols = res.fetchall()
+    if not cols:
+        return
+    img = [c for c in cols if c[1] == "image_url"]
+    if not img or not img[0][3]:      # notnull == 0 — уже всё в порядке
+        return
+    await conn.exec_driver_sql("ALTER TABLE phrase_images RENAME TO phrase_images_old")
+    await conn.exec_driver_sql(
+        "CREATE TABLE phrase_images ("
+        " id INTEGER PRIMARY KEY,"
+        " phrase VARCHAR(255) NOT NULL UNIQUE,"
+        " image_url VARCHAR(255),"
+        " audio_url VARCHAR(255),"
+        " updated_at DATETIME)")
+    old = [c[1] for c in cols]
+    shared = [c for c in ("phrase", "image_url", "audio_url", "updated_at") if c in old]
+    await conn.exec_driver_sql(
+        "INSERT INTO phrase_images (%s) SELECT %s FROM phrase_images_old"
+        % (", ".join(shared), ", ".join(shared)))
+    await conn.exec_driver_sql("DROP TABLE phrase_images_old")
+    await conn.exec_driver_sql(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_phrase_images_phrase ON phrase_images (phrase)")
 
 
 async def migrate_sqlite(engine: AsyncEngine) -> None:
@@ -42,3 +76,4 @@ async def migrate_sqlite(engine: AsyncEngine) -> None:
             for col, ddl in columns.items():
                 if col not in existing:
                     await conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+        await _relax_phrase_images(conn)

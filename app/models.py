@@ -171,7 +171,9 @@ class PhraseImage(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     phrase: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    image_url: Mapped[str] = mapped_column(String(255))
+    image_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # своя озвучка фразы: другой голос или запись владельца; пусто — общий кэш TTS
+    audio_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -195,3 +197,13 @@ class StudySession(Base):
     seconds: Mapped[int] = mapped_column(Integer, default=0)  # присылает клиент: сервер знает только момент финиша
     started_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     finished_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class PhraseGroup(Base):
+    """Приёмка группы фраз: «эту историю я отсмотрел и озвучку послушал»."""
+
+    __tablename__ = "phrase_groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
