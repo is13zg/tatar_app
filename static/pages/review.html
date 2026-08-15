@@ -12,6 +12,9 @@
     button, input, select { font-family: inherit; }
     header { display: flex; gap: 12px; align-items: center; padding: 12px 16px; background: white; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 10; flex-wrap: wrap; }
     header a { color: #2563eb; text-decoration: none; }
+    .hdr-link { font-size: 14px; padding: 6px 10px; border: 1px solid #dbeafe;
+                border-radius: 999px; background: #eff6ff; white-space: nowrap; }
+    header .tsel { margin-left: auto; }   /* счётчик тем прижат к правому краю осознанно */
     h1 { font-size: 18px; margin: 0; }
     select, input[type="search"] { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; }
     .wrap { max-width: 980px; margin: 0 auto; padding: 12px; }
@@ -51,7 +54,8 @@
   <header>
     <a href="/static/pages/admin.html">← Админка</a>
     <h1>🔎 Проверка слов</h1>
-    <p style="margin:-6px 0 10px;font-size:14px;"><a href="/static/pages/phrases.html">🖼 Картинки к фразам</a> — отдельная картинка на каждую ситуацию («Песи карават янында» и т.п.)</p>
+    <a class="hdr-link" href="/static/pages/phrases.html"
+       title="Отдельная картинка на каждую ситуацию: «Песи карават янында», «Песи карават астында» и т.п.">🖼 Картинки к фразам</a>
     <div class="tsel">
       <button id="theme-btn">📚 Темы</button>
       <div class="tsel-panel" id="theme-panel" hidden>
