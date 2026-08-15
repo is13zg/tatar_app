@@ -54,6 +54,9 @@ class Word(Base):
     sentence_ru: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     sentence_audio_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
+    # порядок подачи внутри темы (0 = как по id); уроки режутся по нему
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
     theme: Mapped[Theme] = relationship(back_populates="words")
     progress: Mapped[list["UserProgress"]] = relationship(back_populates="word", cascade="all, delete-orphan")
     mistakes: Mapped[list["UserMistake"]] = relationship(back_populates="word", cascade="all, delete-orphan")

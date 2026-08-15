@@ -14,6 +14,9 @@ _COLUMNS: dict[str, dict[str, str]] = {
         "checked_note": "VARCHAR(200)",
     },
     "words": {
+        # порядок подачи внутри темы: уроки режутся по нему, а не по id —
+        # иначе пары вроде «исәнме/исәнмесез» разъезжаются по разным урокам
+        "sort_order": "INTEGER DEFAULT 0",
         "emoji": "VARCHAR(16)",
         "tts_url": "VARCHAR(255)",
         "image_flag": "INTEGER DEFAULT 0",
