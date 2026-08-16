@@ -1472,6 +1472,7 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                     season_pool: Optional[list[dict]] = None,
                     icon_only: bool = False,
                     icon_only_ids: Optional[set] = None,
+                    prev_words: Optional[list[dict]] = None,
                     place_pool: Optional[list[dict]] = None,
                     past_pool: Optional[list[dict]] = None,
                     count_pool: Optional[list[dict]] = None,
@@ -1505,6 +1506,18 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
         for w in new_words:
             if w["audio_url"]:
                 practice.append(ex_repeat_after(w))
+        # слова ПРОШЛОГО урока возвращаются сценой: пара «сверху/снизу» из
+        # урока 1 проверяется в уроке 2, «внутри/рядом» — в уроке 3. Иначе
+        # каждая пара жила один урок и до босса не всплывала ни разу.
+        for w in (prev_words or []):
+            e = ex_where(w, place_pool or [], phrase_images, phrase_audio) if place_pool else None
+            if e:
+                e["review"] = True
+                practice.append(e)
+            elif w["audio_url"]:
+                r = ex_repeat_after(w)
+                r["review"] = True
+                practice.append(r)
     elif phrase_mode:
         for w in new_words:
             items.append(ex_card(w))
@@ -1907,6 +1920,20 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                     e = ex_build_sentence(w, pool) or ex_build_word(w) or ex_pick_image(w, pool)
             if e:
                 items.append(e)
+        if icon_only_boss:
+            # Один проход — по заданию на слово — давал босса из шести вопросов,
+            # вдвое короче обычного. Второй круг по всем словам в другом порядке,
+            # с чередованием «где кошка» / «выбери звучание», доводит его до
+            # обычной длины и проверяет каждый послелог дважды разными форматами.
+            second = list(pool)
+            random.shuffle(second)
+            for j, w in enumerate(second):
+                if j % 2 == 0:
+                    e = ex_pick_word_audio(w, pool) or ex_where(w, boss_place_pool, boss_phrase_images, boss_phrase_audio)
+                else:
+                    e = ex_where(w, boss_place_pool, boss_phrase_images, boss_phrase_audio) or ex_pick_word_audio(w, pool)
+                if e:
+                    items.append(e)
         if not phrase_mode and not icon_only_boss:
             # у темы-значков картиночные добавки тоже отменяются: memory на стрелках
             # это игра «найди пару одинаковых треугольников», к послелогам отношения нет
@@ -1962,6 +1989,7 @@ async def unit_lesson(theme_id: int, lesson_no: int,
         learned = await learned_theme_ids(db, theme.order_index)
         icon_only_ids = {t.id for t in await get_ordered_units(db) if t.title_ru in ICON_ONLY_THEMES}
         introduced_place = pool[:start + len(new_words)] if icon_only_theme else []
+        prev_place = pool[max(0, start - pace):start] if icon_only_theme else []
         items = build_exercises(new_words, pool, review, sort_payload,
                                 phrase_mode=phrase_mode, allow_build=lesson_no >= 3,
                                 icon_only=theme.title_ru in ICON_ONLY_THEMES,
@@ -1982,6 +2010,7 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                                 # в своей теме варианты ограничены тем, что уже введено:
                                 # иначе в первом уроке ребёнок выбирает между положениями,
                                 # которых ему ещё не показывали
+                                prev_words=prev_place,
                                 place_pool=(introduced_place if icon_only_theme
                                             else await place_words(db, learned | {theme.id})),
                                 past_pool=await verb_words(db, learned),
