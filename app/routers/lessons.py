@@ -418,6 +418,36 @@ def ex_build_word(target: dict) -> Optional[dict]:
     }
 
 
+# Послелоги различаются началом (өст-, аст-, эч-, ян-, арт-, алд-), а хвост
+# -ында/-ендә у всех общий — на слух слова сливаются, на письме разница видна.
+PLACE_STEMS = {"өстендә": 3, "астында": 3, "эчендә": 2, "янында": 2,
+               "артында": 3, "алдында": 3}
+
+
+def ex_build_stem(target: dict) -> Optional[dict]:
+    """«Дострой слово»: общий хвост уже стоит в слотах, ребёнок собирает начало.
+    Среди букв — первые буквы ЧУЖИХ послелогов: выбор первой буквы и есть
+    различение слов. Картинки нет намеренно: опора — только звук, стрелочка-эмодзи
+    вернула бы ассоциацию «слово = значок», которую из темы уже выгоняли."""
+    word = target["text_tt"].strip().lower()
+    stem_len = PLACE_STEMS.get(word)
+    if not stem_len or not target["audio_url"]:
+        return None
+    stem = list(word[:stem_len])
+    decoys = []
+    for other in PLACE_STEMS:
+        if other != word and other[0] not in stem and other[0] not in decoys:
+            decoys.append(other[0])
+    random.shuffle(decoys)
+    letters = stem + decoys[:3]
+    random.shuffle(letters)
+    return {
+        "type": "build_word", "word_id": target["id"], "text_tt": word,
+        "stem_len": stem_len, "audio_url": target["audio_url"],
+        "letters": letters,
+    }
+
+
 def ex_repeat_after(target: dict) -> dict:
     return {"type": "repeat_after", "word": target}
 
@@ -1518,6 +1548,13 @@ def build_exercises(new_words: list[dict], pool: list[dict], review_words: list[
                 r = ex_repeat_after(w)
                 r["review"] = True
                 practice.append(r)
+        # письмо идёт на шаг позади слуха: наслушанную за прошлый урок пару
+        # сегодня достраиваем по буквам — среди букв ловушки из чужих начал
+        for w in (prev_words or []):
+            e = ex_build_stem(w)
+            if e:
+                e["review"] = True
+                practice.append(e)
     elif phrase_mode:
         for w in new_words:
             items.append(ex_card(w))
@@ -1932,6 +1969,12 @@ async def unit_lesson(theme_id: int, lesson_no: int,
                     e = ex_pick_word_audio(w, pool) or ex_where(w, boss_place_pool, boss_phrase_images, boss_phrase_audio)
                 else:
                     e = ex_where(w, boss_place_pool, boss_phrase_images, boss_phrase_audio) or ex_pick_word_audio(w, pool)
+                if e:
+                    items.append(e)
+            # последняя пара вводится в последнем уроке и в «дострой слово»
+            # не попадала ни разу — босс закрывает этот пробел
+            for w in pool[-boss_pace:]:
+                e = ex_build_stem(w)
                 if e:
                     items.append(e)
         if not phrase_mode and not icon_only_boss:

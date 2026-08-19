@@ -1961,23 +1961,39 @@
 
   function rBuildWord(item, screen, done) {
     screen.appendChild(el('div', 'instr', '🧩 Собери слово из букв'));
-    const vis = el('div', 'big-visual'); vis.appendChild(visual(item)); screen.appendChild(vis);
-    const play = el('button', 'play-btn small', '🔊');
-    play.style.margin = '0 auto'; play.style.display = 'block';
-    play.onclick = () => playAudio(item.audio_url);
-    screen.appendChild(play);
+    // у послелогов картинки нет намеренно: слово опознаётся только по звуку,
+    // кнопка 🔊 становится крупной и единственной опорой
+    if (item.image_url || item.emoji) {
+      const vis = el('div', 'big-visual'); vis.appendChild(visual(item)); screen.appendChild(vis);
+      const play = el('button', 'play-btn small', '🔊');
+      play.style.margin = '0 auto'; play.style.display = 'block';
+      play.onclick = () => playAudio(item.audio_url);
+      screen.appendChild(play);
+    } else {
+      const play = el('button', 'play-btn', '🔊');
+      play.style.cssText = 'margin:14px auto;display:block;';
+      play.onclick = () => playAudio(item.audio_url);
+      screen.appendChild(play);
+    }
     const slots = el('div', 'slots'); screen.appendChild(slots);
     const letters = el('div', 'letters'); screen.appendChild(letters);
     const word = item.text_tt;
+    // «дострой слово»: общий хвост уже стоит, собирается только различающееся начало
+    const stemLen = item.stem_len || word.length;
     let pos = 0, wrong = 0;
-    const slotEls = [...word].map(() => { const s = el('div', 'slot', ''); slots.appendChild(s); return s; });
+    const slotEls = [...word].map((ch, i) => {
+      const s = el('div', 'slot', '');
+      if (i >= stemLen) { s.textContent = ch; s.classList.add('filled'); s.style.opacity = '.55'; }
+      slots.appendChild(s);
+      return s;
+    });
     [...item.letters].forEach(ch => {
       const b = el('button', 'letter-tile', ch);
       b.onclick = async () => {
         if (ch === word[pos]) {
           slotEls[pos].textContent = ch; slotEls[pos].classList.add('filled');
           b.disabled = true; pos++;
-          if (pos === word.length) {
+          if (pos === stemLen) {
             const ok = wrong <= 1;
             reportAnswer(item.word_id, ok, 'build_word');
             await playAudio(item.audio_url);
