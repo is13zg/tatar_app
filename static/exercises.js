@@ -15,6 +15,30 @@
   }
 
   const audioEl = new Audio();
+  // Каждый play раньше ходил в сеть: статика отвечала без Cache-Control, и на
+  // слабом интернете повторное нажатие 🔊 снова тянуло тот же wav. Теперь файл
+  // скачивается один раз, дальше играет из памяти страницы.
+  const audioBlobCache = new Map();   // url -> objectURL
+  async function audioSrc(url) {
+    if (!url || !url.startsWith('/static/')) return url;  // blob: и чужие — как есть
+    const hit = audioBlobCache.get(url);
+    if (hit) return hit;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return url;
+      const obj = URL.createObjectURL(await r.blob());
+      if (audioBlobCache.size >= 200) {   // не копим бесконечно: самый старый на выход
+        const oldest = audioBlobCache.keys().next().value;
+        URL.revokeObjectURL(audioBlobCache.get(oldest));
+        audioBlobCache.delete(oldest);
+      }
+      audioBlobCache.set(url, obj);
+      return obj;
+    } catch (e) {
+      return url;   // сеть упала — пробуем играть напрямую, как раньше
+    }
+  }
+
   function playAudio(url) {
     return new Promise(resolve => {
       if (!url) return resolve();
@@ -22,10 +46,12 @@
       try { speechSynthesis.cancel(); } catch (e) {}
       try { ruAudioEl.pause(); } catch (e) {}
       try { audioEl.pause(); audioEl.currentTime = 0; } catch (e) {}
-      audioEl.src = url;
-      audioEl.onended = () => resolve();
-      audioEl.onerror = () => resolve();
-      audioEl.play().catch(() => resolve());
+      audioSrc(url).then(src => {
+        audioEl.src = src;
+        audioEl.onended = () => resolve();
+        audioEl.onerror = () => resolve();
+        audioEl.play().catch(() => resolve());
+      });
       setTimeout(resolve, 10000); // страховка
     });
   }
@@ -110,7 +136,6 @@
       if (!key || missingInstr.has(key)) { speakRuBrowser(text).then(resolve); return; }
       try { speechSynthesis.cancel(); } catch (e) {}
       try { ruAudioEl.pause(); ruAudioEl.currentTime = 0; } catch (e) {}
-      ruAudioEl.src = `/static/voice/ru/${key}.wav`;
       ruAudioEl.onended = () => resolve();
       ruAudioEl.onerror = () => {
         if (my === speakToken) {
@@ -120,7 +145,11 @@
           resolve(); // нас просто перебили следующим звуком — файл не виноват
         }
       };
-      ruAudioEl.play().catch(() => resolve()); // перебили другим звуком — тихо выходим
+      audioSrc(`/static/voice/ru/${key}.wav`).then(src => {
+        if (my !== speakToken) return resolve();   // пока качали, нас перебили
+        ruAudioEl.src = src;
+        ruAudioEl.play().catch(() => resolve()); // перебили другим звуком — тихо выходим
+      });
       setTimeout(resolve, 4000); // страховка
     });
   }

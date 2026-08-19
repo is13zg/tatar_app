@@ -283,7 +283,10 @@ async def tts_word(
     if not word:
         raise HTTPException(status_code=404, detail="Слово не найдено")
     try:
-        word.tts_url = await synthesize_to_file(word.text_tt, speaker=voice)
+        # force: каждый дубль tat-tts звучит чуть иначе — кнопка должна давать
+        # новый, а не возвращать кэш; ?v= — иначе браузер сыграет старый файл
+        url = await synthesize_to_file(word.text_tt, speaker=voice, force=True)
+        word.tts_url = f"{url}?v={int(time.time())}"
         word.audio_url = None  # свежая озвучка главнее старой записи
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Ошибка TTS: {e}")
@@ -455,7 +458,8 @@ async def tts_sentence(
     if not word or not word.sentence_tt:
         raise HTTPException(status_code=404, detail="Нет слова или предложения")
     try:
-        word.sentence_audio_url = await synthesize_to_file(word.sentence_tt, speaker=voice)
+        url = await synthesize_to_file(word.sentence_tt, speaker=voice, force=True)
+        word.sentence_audio_url = f"{url}?v={int(time.time())}"
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Ошибка TTS: {e}")
     await db.commit()
@@ -631,7 +635,8 @@ async def phrase_tts(payload: dict = Body(...),
     if voice not in ("alsu", "almaz"):
         raise HTTPException(status_code=400, detail="Голос может быть alsu или almaz")
     try:
-        url = await synthesize_to_file(phrase, speaker=voice)
+        url = await synthesize_to_file(phrase, speaker=voice, force=True)
+        url = f"{url}?v={int(time.time())}"
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Озвучка не удалась: {e}")
     row = (await db.execute(select(PhraseImage).where(PhraseImage.phrase == phrase))).scalar_one_or_none()

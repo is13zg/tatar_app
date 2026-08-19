@@ -92,6 +92,21 @@ async def me(user: Annotated[User, Depends(get_current_user)]):
     return UserOut(id=user.id, username=user.username, email=user.email, created_at=user.created_at, is_admin=user.is_admin)
 
 
+@app.middleware("http")
+async def static_cache_headers(request, call_next):
+    """Starlette-статика отвечает без Cache-Control: браузер на каждый play
+    ходит на сервер хотя бы за 304, а на слабой сети это заметная пауза.
+    Озвучке сутки (файлы перезаписываются переозвучкой на том же пути, свежие
+    ссылки несут ?v=), картинкам и шрифтам — неделя (?v= уже в ссылках)."""
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/static/voice/"):
+        response.headers.setdefault("Cache-Control", "public, max-age=86400")
+    elif path.startswith(("/static/image/", "/static/fonts/", "/static/sounds/")):
+        response.headers.setdefault("Cache-Control", "public, max-age=604800")
+    return response
+
+
 @app.get("/themes", response_model=list[ThemeOut])
 async def list_themes(db: Annotated[AsyncSession, Depends(get_db)]):
     themes = (await db.execute(select(Theme))).scalars().all()
